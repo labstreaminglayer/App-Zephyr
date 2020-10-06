@@ -2,28 +2,33 @@ Zepyhr BioHarness LSL Integration
 =================================
 
 
-Installation
+Requirements
 ============
 
-All platforms
--------------
 - make sure that you have Miniconda installed and/or that the
   `conda` command-line interface is on your path 
-
-Windows
--------
-- you can simply run `run.cmd`, which will, if necessary, create a fresh Python 
-  environment and install the necessary dependencies into
-  
 
 Linux
 -----
 - make sure that you have Bluetooth development headers installed
   e.g. on Ubuntu 20.04: `sudo apt install libbluetooth-dev`
 
+Installation
+============
 
-Linux, MacOS, or alternative Windows method
--------------------------------------------
+Windows
+-------
+- Invoke the script `run.cmd`, which will, if necessary, create a fresh Python 
+  environment and install the necessary dependencies into it
+
+Linux/MacOS
+-----------
+- Invoke the script `run.sh`, which will, if necessary, create a fresh Python 
+  environment and install the necessary dependencies into it
+
+
+Manual Install
+--------------
 - you can also follow the instructions in `conda-environment.yml` to install a 
   Python environment yourself, and then you can set up a script to run `main.py` 
   with a Python interpreter of your choosing
