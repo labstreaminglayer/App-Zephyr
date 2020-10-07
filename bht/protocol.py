@@ -111,7 +111,7 @@ class MessageIDs(enum.IntEnum):
     LiveLogAccessCommand = 0xE5  # configure OTA log transmit while still logging...
 
 
-# sorthands
+# shorthands
 MC = MessageConstants
 MI = MessageIDs
 
@@ -265,7 +265,13 @@ class Message:
         if self.fin not in (MC.ACK, MC.ETX):
             raise RuntimeError(f"Error invoking {MI(self.msgid).name}: {self}")
 
+    def as_dict(self):
+        """Get the content as a dictionary."""
+        return {k: v for k, v in self.__dict__.items()
+                if not k.startswith('_') and k not in ('msgid', 'payload', 'fin')}
+
     def __str__(self):
+        """Render a human-readable string."""
         content = ', '.join([f'{k}={v}' for k, v in self.__dict__.items() if not k.startswith('_')])
         return f'{self.__class__.__name__}({content})'
 

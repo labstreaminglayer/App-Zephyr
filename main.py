@@ -1,5 +1,6 @@
 """Command line interface or the Zephyr BioHarness LSL integration."""
 import logging
+import datetime
 import asyncio
 import argparse
 
@@ -18,7 +19,7 @@ def add_manufacturer(desc):
     acq.append_child_value('model', 'Zephyr BioHarness')
 
 
-async def enable_ecg(link, nameprefix, idprefix):
+async def enable_ecg(link, nameprefix, idprefix, **kwargs):
     """Enable the ECG data stream."""
     info = pylsl.StreamInfo(nameprefix+'ECG', 'ECG', 1,
                             nominal_srate=ECGWaveformMessage.srate,
@@ -36,7 +37,7 @@ async def enable_ecg(link, nameprefix, idprefix):
     await link.toggle_ecg(on_ecg)
 
 
-async def enable_respiration(link, nameprefix, idprefix):
+async def enable_respiration(link, nameprefix, idprefix, **kwargs):
     """Enable the respiration data stream."""
     info = pylsl.StreamInfo(nameprefix+'Resp', 'Respiration', 1,
                             nominal_srate=BreathingWaveformMessage.srate,
@@ -54,7 +55,7 @@ async def enable_respiration(link, nameprefix, idprefix):
     await link.toggle_breathing(on_breathing)
 
 
-async def enable_accel100mg(link, nameprefix, idprefix):
+async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
     """Enable the accelerometer data stream."""
     info = pylsl.StreamInfo(nameprefix+'Accel', 'Mocap', 3,
                             nominal_srate=AccelerometerWaveformMessage.srate,
@@ -75,7 +76,7 @@ async def enable_accel100mg(link, nameprefix, idprefix):
     await link.toggle_accel100mg(on_accel)
 
 
-async def enable_rtor(link, nameprefix, idprefix):
+async def enable_rtor(link, nameprefix, idprefix, **kwargs):
     """Enable the respiration data stream."""
     info = pylsl.StreamInfo(nameprefix+'RtoR', 'Misc', 1,
                             nominal_srate=RtoRMessage.srate,
@@ -94,7 +95,7 @@ async def enable_rtor(link, nameprefix, idprefix):
     await link.toggle_rtor(on_rtor)
 
 
-async def enable_events(link, nameprefix, idprefix):
+async def enable_events(link, nameprefix, idprefix, **kwargs):
     """Enable the respiration data stream."""
     info = pylsl.StreamInfo(nameprefix+'Markers', 'Markers', 1,
                             nominal_srate=0,
@@ -103,18 +104,75 @@ async def enable_events(link, nameprefix, idprefix):
     outlet = pylsl.StreamOutlet(info)
 
     def on_event(msg):
-        outlet.push_sample([str(msg.event_code) + ':' + msg.event_data.decode('utf-8')])
+        if kwargs.get('localtime', '1') == '1':
+            stamp = datetime.datetime.fromtimestamp(msg.stamp)
+        else:
+            stamp = datetime.datetime.utcfromtimestamp(msg.stamp)
+        timestr = stamp.strftime('%Y-%m-%d %H:%M:%S')
+        outlet.push_sample([f'{msg.event_code}:{msg.event_data.decode("utf-8")}@{timestr}'])
 
     await link.toggle_events(on_event)
 
 
-# ma
+async def enable_summary(link, nameprefix, idprefix, **kwargs):
+    """Enable the summary data stream."""
+    # we're delaying creation of these objects until we got data since we don't
+    # know in advance if we're getting summary packet V2 or V3
+    info, outlet = None, None
+
+    def on_summary(msg):
+        nonlocal info, outlet
+        content = msg.as_dict()
+        if info is None:
+            info = pylsl.StreamInfo(nameprefix+'Summary', 'Misc', len(content),
+                                    nominal_srate=1,
+                                    channel_format=pylsl.cf_float32,
+                                    source_id=idprefix+'-Summary')
+            desc = info.desc()
+            add_manufacturer(desc)
+            chns = desc.append_child('channels')
+            for key in content:
+                chns.append_child('channel').append_child_value('label', key)
+            outlet = pylsl.StreamOutlet(info)
+        outlet.push_sample(list(content.values()))
+
+    await link.toggle_summary(on_summary)
+
+
+async def enable_general(link, nameprefix, idprefix, **kwargs):
+    """Enable the general data stream."""
+    # we're delaying creation of these objects until we got data since we're
+    # deriving the channel count and channel labels from the data packet
+    info, outlet = None, None
+
+    def on_general(msg):
+        nonlocal info, outlet
+        content = msg.as_dict()
+        if info is None:
+            info = pylsl.StreamInfo(nameprefix+'General', 'Misc', len(content),
+                                    nominal_srate=1,
+                                    channel_format=pylsl.cf_float32,
+                                    source_id=idprefix+'-General')
+            desc = info.desc()
+            add_manufacturer(desc)
+            chns = desc.append_child('channels')
+            for key in content:
+                chns.append_child('channel').append_child_value('label', key)
+            outlet = pylsl.StreamOutlet(info)
+        outlet.push_sample(list(content.values()))
+
+    await link.toggle_general(on_general)
+
+
+# map of functions that enable various streams and hook in the respective handlers
 enablers = {
     'ecg': enable_ecg,
     'respiration': enable_respiration,
     'accel100mg': enable_accel100mg,
     'rtor': enable_rtor,
     'events': enable_events,
+    'summary': enable_summary,
+    'general': enable_general,
 }
 
 
@@ -142,6 +200,9 @@ async def init():
                                          'than this many seconds to succeed or fail, '
                                          'an error is raised and the app exits.',
                        default=20)
+        p.add_argument('--localtime', help="Whether event time stamps are in "
+                                           "local time (otherwise UTC is assumed).",
+                       default='1', choices=['0', '1'])
         args = p.parse_args()
 
         # set up logging
@@ -149,7 +210,7 @@ async def init():
                             format='%(asctime)s %(levelname)s: %(message)s')
         logger.info("starting up...")
 
-        # enable various kinds of streams and install handlers
+        # sanity checking
         modalities = args.stream.split(',')
         unknown = set(modalities) - set(enablers.keys())
         if unknown:
@@ -162,12 +223,13 @@ async def init():
         logger.info(f"Device info is:\n{info_str}")
         id_prefix = infos['serial']
 
+        # enable various kinds of streams and install handlers
         logger.info("Enabling streams...")
         for mod in modalities:
             logger.info(f"  enabling {mod}...")
             enabler = enablers[mod]
             await enabler(link, nameprefix=args.streamprefix,
-                          idprefix=id_prefix)
+                          idprefix=id_prefix, **vars(args))
 
         logger.info('Now streaming...')
 

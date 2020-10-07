@@ -117,7 +117,7 @@ class BioHarness:
         """Toggle the R-to-R data on or off."""
         return await self._toggle_handler(MI.SetRtoRDataPacketTransmitState, handler)
 
-    async def toggle_summary(self, *, handler, ival=1):
+    async def toggle_summary(self, handler, ival=1):
         """Toggle the summary data and/or set the transmit and integration interval (in seconds)."""
         # noinspection PyTypeChecker
         return await self._toggle_handler(MI.SetSummaryDataPacketUpdateRate, handler,
@@ -151,7 +151,6 @@ class BioHarness:
             return resp
         except:
             raise
-
 
     async def _call(self, msgid, payload=()):
         """Invoke a remote procedure call asynchronously and return the resulting

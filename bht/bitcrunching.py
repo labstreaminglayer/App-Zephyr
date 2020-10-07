@@ -42,4 +42,3 @@ REVERSE_BITS_LUT = [reverse_bits8_slow(b) for b in range(256)]
 def reverse_bits8(seq):
     """Reverse bits in a sequenceof bytes using a lookup table."""
     return [REVERSE_BITS_LUT[b] for b in seq]
-

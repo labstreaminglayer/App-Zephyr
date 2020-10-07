@@ -80,7 +80,6 @@ class BioharnessIO:
         # reconnect loop
         while not self._shutdown:
             logger.info(f'Connecting to device {self._address}...')
-            # sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
             sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
             try:
                 sock.connect((self._address, self._port))
