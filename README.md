@@ -10,7 +10,7 @@ Prerequisites
 
 - **Linux:** make sure that you have Bluetooth development headers installed
   e.g. on Ubuntu 20.04: `sudo apt install libbluetooth-dev`
-- **Every Platform:** make sure that you have Miniconda installed and/or that the
+- **Every Platform:** make sure that you have Miniconda installed and that the
   `conda` command-line interface is on your path 
 
 Installation
@@ -28,8 +28,8 @@ Installation
 Usage
 =====
 
-1. Switch on the BioHarness using the button (it would typically blink orange and 
-  green once ready).
+1. Switch on the BioHarness using the button (it should blink orange and 
+  optionally green as well).
 2. Make sure that you can access the device from a vendor-provided desktop software
   (e.g., the one used to retrieve log files). 
 3. Optionally configure it using the tools provided with the device
