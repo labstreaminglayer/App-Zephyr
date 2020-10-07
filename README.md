@@ -1,7 +1,7 @@
 Zepyhr BioHarness LSL Integration
 =================================
 
-This is a simple LSL adapter for Medtronic / Zephyr BioModule and BioHarness 
+This is an LSL adapter for Medtronic / Zephyr BioModule and BioHarness 
 Bluetooth devices. This is a new application, so if you find any issues with it,
 please use the GitHub issue tracker for this project to report them. 
 
@@ -33,7 +33,7 @@ Installation
 Usage
 =====
 
-1. Switch on the BioHarness using the button (it should either blink orange or 
+1. Switch on the sensor using the button (it should either blink orange or 
    have a constant orange LED).
 2. Optionally configure the device using the tools provided with the device
   (e.g., set subject info, device clock, configure logging, and so on).
