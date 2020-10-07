@@ -14,12 +14,12 @@ if errorlevel 1 (
 )
 
 echo Checking if python environment present...
-call conda activate pyzephyr2
+call conda activate pyzephyr
 if errorlevel 1 (
    echo.
    echo Creating conda environment on first-time use...
-   call conda env create -n pyzephyr2 -f conda-environment.yml
+   call conda env create -n pyzephyr -f conda-environment.yml
 )
 
 echo Launching application...
-call conda activate pyzephyr2 && python main.py %*
+call conda activate pyzephyr && python main.py %*

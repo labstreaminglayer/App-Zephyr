@@ -34,7 +34,7 @@ class BioHarness:
         # get the event loop that we're interacting with
         self._loop = loop or asyncio.get_running_loop()
         # the module that does the actual data I/O
-        self.io = BioharnessIO(address, port)
+        self.io = BioharnessIO(address, port, daemon=True)
         self.io._handle_message = self._dispatch_message
 
     # --- various getters ---

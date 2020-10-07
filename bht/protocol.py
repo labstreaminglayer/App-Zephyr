@@ -138,6 +138,7 @@ transmit_state2data_packet = {
 
 # known units for various parameters
 parameter_units = {
+    'activity': 'g',
     'activity_unreliable': 'binary',
     'avg_rate_of_force_development': 'N/s',
     'avg_step_impulse': 'Ns',
@@ -164,6 +165,7 @@ parameter_units = {
     'heart_rate_confidence': 'percent',
     'heart_rate_is_low_quality': 'binary',
     'heart_rate_unreliable': 'binary',
+    'heart_rate_variability': 'ms',
     'hrv_unreliable': 'binary',
     'impact_count3g': 'count',
     'impact_count7g': 'count',
@@ -190,13 +192,14 @@ parameter_units = {
     'respiration_rate': 'BPM',
     'respiration_rate_unreliable': 'binary',
     'resting_state_detected': 'binary',
-    'rssi': 'unnormalized',
+    'rssi': 'dB',
     'run_step_count': 'count',
     'sagittal_accel_min': 'g',
     'sagittal_accel_peak': 'g',
     'skin_temperature': 'degrees C',
     'skin_temperature_unreliable': 'binary',
     'system_confidence': 'percent',
+    'tx_power': 'dBm',
     'ui_button_pressed': 'binary',
     'usb_power_connected': 'binary',
     'vertical_accel_min': 'g',
@@ -654,6 +657,7 @@ class ECGWaveformMessage(WaveformMessage):
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 88)
         super().__init__(msgid, payload, fin, bytes_per_chunk=5, signed='shift')
+        self.waveform = [w*0.025 for w in self.waveform]  # 0.025 = 1mV
 
 
 class BreathingWaveformMessage(WaveformMessage):
@@ -671,7 +675,7 @@ class AccelerometerWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 84)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=15, signed=True)
+        super().__init__(msgid, payload, fin, bytes_per_chunk=15, signed='shift')
         self.accel_x = self.waveform[::3]
         self.accel_y = self.waveform[1::3]
         self.accel_z = self.waveform[2::3]
@@ -704,11 +708,26 @@ class RtoRMessage(StreamingMessage):
 
 
 class EventMessage(StreamingMessage):
+
+    event_map = {
+        0x0040: 'button press',
+        0x0041: 'emergency button press',
+        0x0080: 'battery level low',
+        0x00C0: 'self test result',
+        0x1000: 'ROG change',
+        0x1040: 'worn status change',
+        0x1080: 'HR reliability change',
+        0x10C0: 'fall detected',
+        0x1100: 'jump detected',
+        0x1140: 'dash detected'
+    }
+
     """A message that holds event codes."""
     def __init__(self, msgid, payload, fin):
         super().__init__(msgid, payload, fin)
         self.event_code = parse_num(payload[9:11], False)
-        self.event_data = bytes(payload[11:])
+        self.event_string = EventMessage.event_map.get(self.event_code, 'unknown')
+        self.event_data = payload[11:]
 
 
 def decode_message(msgid, payload=(), fin=MC.ETX):

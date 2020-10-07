@@ -21,7 +21,8 @@ __all__ = ['BioharnessIO']
 
 class BioharnessIO:
 
-    def __init__(self, address='', port=1, lifesign_interval=2, reconnect=True):
+    def __init__(self, address='', port=1, lifesign_interval=2, reconnect=True,
+                 daemon=False):
         """Handle message-level communication with a Bioharness device via BLE.
 
         Args:
@@ -31,6 +32,7 @@ class BioharnessIO:
             lifesign_interval: life-sign interval in seconds to keep connection
               up
             reconnect: attempt to reconnect on connection failure
+            daemon: use a daemon thread
         """
         # BT MAC address of device
         if not address:
@@ -51,6 +53,7 @@ class BioharnessIO:
         self._shutdown = False
         # transmission thread
         self._thread = threading.Thread(target=self._run, name='BHT-Xfer')
+        self._thread.daemon = daemon
         self._thread.start()
 
     def shutdown(self):

@@ -28,7 +28,8 @@ async def enable_ecg(link, nameprefix, idprefix, **kwargs):
     desc = info.desc()
     chn = desc.append_child('channels').append_child('channel')
     chn.append_child_value('label', 'ECG1')
-    chn.append_child_value('type', 'ECG')  # TODO: unit
+    chn.append_child_value('type', 'ECG')
+    chn.append_child_value('unit', 'millivolts')
     add_manufacturer(desc)
     outlet = pylsl.StreamOutlet(info)
 
@@ -47,7 +48,8 @@ async def enable_respiration(link, nameprefix, idprefix, **kwargs):
     desc = info.desc()
     chn = desc.append_child('channels').append_child('channel')
     chn.append_child_value('label', 'Respiration')
-    chn.append_child_value('type', 'EXG')  # TODO: unit
+    chn.append_child_value('type', 'EXG')
+    chn.append_child_value('unit', 'unnormalized')
     add_manufacturer(desc)
     outlet = pylsl.StreamOutlet(info)
 
@@ -91,6 +93,7 @@ async def enable_accel(link, nameprefix, idprefix, **kwargs):
         chn = chns.append_child('channel')
         chn.append_child_value('label', lab)
         chn.append_child_value('type', 'Acceleration' + lab)
+        chn.append_child_value('unit', 'unnormalized')
     add_manufacturer(desc)
     outlet = pylsl.StreamOutlet(info)
 
@@ -98,6 +101,7 @@ async def enable_accel(link, nameprefix, idprefix, **kwargs):
         outlet.push_chunk([[x, y, z] for x, y, z in zip(msg.accel_x, msg.accel_y, msg.accel_z)])
 
     await link.toggle_accel(on_accel)
+
 
 # noinspection PyUnusedLocal
 async def enable_rtor(link, nameprefix, idprefix, **kwargs):
@@ -134,7 +138,9 @@ async def enable_events(link, nameprefix, idprefix, **kwargs):
         else:
             stamp = datetime.datetime.utcfromtimestamp(msg.stamp)
         timestr = stamp.strftime('%Y-%m-%d %H:%M:%S')
-        outlet.push_sample([f'{msg.event_code}:{msg.event_data.decode("utf-8")}@{timestr}'])
+        event_str = f'{msg.event_string}/{msg.event_data}@{timestr}'
+        outlet.push_sample([event_str])
+        logger.debug(f'event detected: {event_str}')
 
     await link.toggle_events(on_event)
 
