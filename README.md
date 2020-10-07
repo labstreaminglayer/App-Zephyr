@@ -5,7 +5,16 @@ Zepyhr BioHarness LSL Integration
 Installation
 ============
 
+All platforms
+-------------
+- make sure that you have Miniconda installed and/or that the
+  `conda` command-line interface is on your path 
 
+Windows
+-------
+- you can simply run `run.cmd`, which will, if necessary, create a fresh Python 
+  environment and install the necessary dependencies into
+  
 
 Linux
 -----
@@ -13,12 +22,11 @@ Linux
   e.g. on Ubuntu 20.04: `sudo apt install libbluetooth-dev`
 
 
-All platforms
--------------
-- make sure that you have Miniconda installed and/or that the
-  `conda` command-line interface is on your path
-- follow the instructions in `conda-environment.yml` to see how to install
-  an environment
+Linux, MacOS, or alternative Windows method
+-------------------------------------------
+- you can also follow the instructions in `conda-environment.yml` to install a 
+  Python environment yourself, and then you can set up a script to run `main.py` 
+  with a Python interpreter of your choosing
 
 
 Usage
@@ -38,4 +46,8 @@ Usage
   - additional command-line arguments are available to further customize the
     program's behavior
     
-  
+License
+=======
+
+This software was developed by Syntrogi Inc. dba Intheon, and is licensed under 
+the GPLv2. A copy of this license is provided in the file `COPYING`. 

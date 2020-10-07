@@ -1,5 +1,5 @@
-# This file can be used to install a new conda environment specifically for the
-# this application, using the following commands (we choose the arbitrary name
+# This file can be used to install a new conda environment specifically for this
+# application, using the following commands (we choose the arbitrary name
 # pyzephyr for that environment here, feel free to pick your own):
 #
 #   Create Environment:
@@ -16,6 +16,7 @@ channels:
 - defaults
 dependencies:
 - python=3.7  # needed for pybluez on Windows
+- pip
 - pip:
   - cbitstruct
   - pybluez ; platform_system != "Windows"
