@@ -17,8 +17,8 @@ Since the Zephyr uses Bluetooth Low Energy (BLE), your machine needs to have the
 necessary wireless hardware installed (either built in as with many recent laptops,
 or using a BLE-capable USB dongle).
 
-Installation
-============
+Installing/Running
+==================
 
 - **Windows:** Invoke the script `run.cmd`, which will, if necessary, create a fresh Python 
   environment and install the necessary dependencies into it
