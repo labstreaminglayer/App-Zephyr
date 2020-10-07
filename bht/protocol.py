@@ -136,13 +136,26 @@ transmit_state2data_packet = {
 }
 
 
-@functools.lru_cache(5)
-def make_sequence_unpacker(vals_per_chunk, bits_per_val=10):
+@functools.lru_cache(6)
+def make_sequence_unpacker(vals_per_chunk, is_signed=False, bits_per_val=10):
     """Create a callable that can be used to unpack bits that are packed using
-    the BHT bit-packing scheme into a seequence of ints."""
-    bitfmt = f'<s{bits_per_val}' * vals_per_chunk
+    the BHT bit-packing scheme into a seequence of ints.
+
+    Args:
+        vals_per_chunk: number of values in a data chunk
+        is_signed: whether the values are stored as 2's complement signed integers
+          (or the special value 'shift', which uses a shift by 1/2 the range)
+        bits_per_val: the number of bits used to store each successive value
+
+    Returns: a list of decoded numbers
+    """
+    bitfmt = f'<{"s" if is_signed == True else "u"}{bits_per_val}' * vals_per_chunk
     unpacker = bitstruct.compile(bitfmt)
-    return lambda seq: unpacker.unpack(bytes(reverse_bits8(seq)))
+    if is_signed == 'shift':
+        return lambda seq: [v - 2**(bits_per_val - 1) if v != 0 else math.nan
+                            for v in unpacker.unpack(bytes(reverse_bits8(seq)))]
+    else:
+        return lambda seq: unpacker.unpack(bytes(reverse_bits8(seq)))
 
 
 def make_gps_pos_unpacker():
@@ -219,7 +232,6 @@ def parse_num(encoded, signed, *, inval=None, num_bytes=None):
     # convert to two's complement
     if signed and encoded[num_bytes-1] > 127:
         num -= 2**(8*num_bytes)
-
     return num
 
 
@@ -544,12 +556,12 @@ class SummaryDataMessageV3(SummaryDataMessage):
 class WaveformMessage(StreamingMessage):
     """A message that holds a waveform."""
 
-    def __init__(self, msgid, payload, fin, bytes_per_chunk):
+    def __init__(self, msgid, payload, fin, bytes_per_chunk, signed):
         super().__init__(msgid, payload, fin)
         # extract waveform, skipping the seq no & timestamp
         waveform = []
         values_per_chunk = bytes_per_chunk*4//5
-        unpacker = make_sequence_unpacker(values_per_chunk)
+        unpacker = make_sequence_unpacker(values_per_chunk, is_signed=signed)
         for ofs in range(9, len(payload), bytes_per_chunk):
             packed = payload[ofs:ofs+bytes_per_chunk]
             # pad to full length so we don't get decode errors
@@ -567,7 +579,7 @@ class ECGWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 88)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=5)
+        super().__init__(msgid, payload, fin, bytes_per_chunk=5, signed='shift')
 
 
 class BreathingWaveformMessage(WaveformMessage):
@@ -576,7 +588,7 @@ class BreathingWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 32)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=5)
+        super().__init__(msgid, payload, fin, bytes_per_chunk=5, signed='shift')
 
 
 class AccelerometerWaveformMessage(WaveformMessage):
@@ -585,7 +597,7 @@ class AccelerometerWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 84)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=15)
+        super().__init__(msgid, payload, fin, bytes_per_chunk=15, signed=True)
         self.accel_x = self.waveform[::3]
         self.accel_y = self.waveform[1::3]
         self.accel_z = self.waveform[2::3]
@@ -598,7 +610,7 @@ class Accelerometer100MgWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 84)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=15)
+        super().__init__(msgid, payload, fin, bytes_per_chunk=15, signed=True)
         waveform = [w*0.1 for w in self.waveform]
         # in units of g, res 0.1
         self.accel_x = waveform[::3]

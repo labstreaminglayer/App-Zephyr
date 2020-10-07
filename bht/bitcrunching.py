@@ -1,4 +1,4 @@
-"""Custom bit crunching check as required by the BHT protocol."""
+"""Custom bit crunching as required by the BHT protocol."""
 
 __all__ = ['crc8', 'reverse_bits8']
 
@@ -40,5 +40,5 @@ REVERSE_BITS_LUT = [reverse_bits8_slow(b) for b in range(256)]
 
 
 def reverse_bits8(seq):
-    """Reverse bits in a sequenceof bytes using a lookup table."""
+    """Reverse bits in a sequence of bytes using a lookup table."""
     return [REVERSE_BITS_LUT[b] for b in seq]
