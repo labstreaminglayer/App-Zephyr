@@ -60,9 +60,9 @@ async def enable_respiration(link, nameprefix, idprefix, **kwargs):
 # noinspection PyUnusedLocal
 async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
     """Enable the accelerometer data stream."""
-    info = pylsl.StreamInfo(nameprefix+'Accel', 'Mocap', 3,
-                            nominal_srate=AccelerometerWaveformMessage.srate,
-                            source_id=idprefix+'-Accel')
+    info = pylsl.StreamInfo(nameprefix+'Accel100mg', 'Mocap', 3,
+                            nominal_srate=Accelerometer100MgWaveformMessage.srate,
+                            source_id=idprefix+'-Accel100mg')
     desc = info.desc()
     chns = desc.append_child('channels')
     for lab in ['X', 'Y', 'Z']:
@@ -73,11 +73,31 @@ async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
     add_manufacturer(desc)
     outlet = pylsl.StreamOutlet(info)
 
+    def on_accel100mg(msg):
+        outlet.push_chunk([[x, y, z] for x, y, z in zip(msg.accel_x, msg.accel_y, msg.accel_z)])
+
+    await link.toggle_accel100mg(on_accel100mg)
+
+
+# noinspection PyUnusedLocal
+async def enable_accel(link, nameprefix, idprefix, **kwargs):
+    """Enable the regular accelerometer data stream."""
+    info = pylsl.StreamInfo(nameprefix+'Accel', 'Mocap', 3,
+                            nominal_srate=AccelerometerWaveformMessage.srate,
+                            source_id=idprefix+'-Accel')
+    desc = info.desc()
+    chns = desc.append_child('channels')
+    for lab in ['X', 'Y', 'Z']:
+        chn = chns.append_child('channel')
+        chn.append_child_value('label', lab)
+        chn.append_child_value('type', 'Acceleration' + lab)
+    add_manufacturer(desc)
+    outlet = pylsl.StreamOutlet(info)
+
     def on_accel(msg):
         outlet.push_chunk([[x, y, z] for x, y, z in zip(msg.accel_x, msg.accel_y, msg.accel_z)])
 
-    await link.toggle_accel100mg(on_accel)
-
+    await link.toggle_accel(on_accel)
 
 # noinspection PyUnusedLocal
 async def enable_rtor(link, nameprefix, idprefix, **kwargs):
@@ -184,6 +204,7 @@ enablers = {
     'ecg': enable_ecg,
     'respiration': enable_respiration,
     'accel100mg': enable_accel100mg,
+    'accel': enable_accel,
     'rtor': enable_rtor,
     'events': enable_events,
     'summary': enable_summary,
