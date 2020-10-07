@@ -9,7 +9,7 @@ Prerequisites
 
 - **Linux:** make sure that you have Bluetooth development headers installed
   e.g. on Ubuntu 20.04: `sudo apt install libbluetooth-dev`
-- **Every Platform:** make sure that you have Miniconda installed and/or that the
+- **Every Platform:** make sure that you have Miniconda installed and that the
   `conda` command-line interface is on your path 
 
 Installation
