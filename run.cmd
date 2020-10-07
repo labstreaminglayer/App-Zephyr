@@ -1,0 +1,1 @@
+conda activate pyzephyr && python main.py

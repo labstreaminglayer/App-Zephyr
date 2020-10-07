@@ -1,0 +1,23 @@
+# This file can be used to install a new conda environment specifically for the
+# this application, using the following commands (we choose the arbitrary name
+# pyzephyr for that environment here, feel free to pick your own):
+#
+#   Create Environment:
+#   conda env create -n pyzephyr -f conda-environment.yml
+#
+#   Activate Environment:
+#   conda activate pyzephyr
+#
+#   Launch application
+#   python main.py
+#
+channels:
+- conda-forge
+- defaults
+dependencies:
+- python=3.7  # needed for pybluez on Windows
+- pip:
+  - cbitstruct
+  - pybluez ; platform_system != "Windows"
+  - https://s3.amazonaws.com/resources.neuropype.io/wheels/PyBluez-0.22-cp37-cp37m-win_amd64.whl ; platform_system == "Windows"
+  - pylsl
