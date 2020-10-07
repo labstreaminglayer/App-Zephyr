@@ -2,7 +2,8 @@ Zepyhr BioHarness LSL Integration
 =================================
 
 This is a simple LSL adapter for Medtronic / Zephyr BioModule and BioHarness 
-Bluetooth devices. 
+Bluetooth devices. This is a new application, so if you find any issues with it,
+please use the GitHub issue tracker for this projects to report them. 
 
 Prerequisites
 ============
