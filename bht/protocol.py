@@ -213,7 +213,7 @@ def get_unit(param):
     return parameter_units.get(param, None)
 
 
-@functools.lru_cache(6)
+@functools.lru_cache(10)
 def make_sequence_unpacker(vals_per_chunk, is_signed=False, bits_per_val=10):
     """Create a callable that can be used to unpack bits that are packed using
     the BHT bit-packing scheme into a seequence of ints.
@@ -254,6 +254,9 @@ def make_gps_pos_unpacker():
     fmt = '<' + ''.join(layout.values())
     names = list(layout.keys())
     unpacker = bitstruct.compile(fmt, names=names)
+    # bits for each byte need to be reversed since the bit-packing scheme shifts
+    # in remaining bits from the previous value starting from the least-significant
+    # bit
     return lambda seq: unpacker.unpack(bytes(reverse_bits8(seq)))
 
 
@@ -278,6 +281,7 @@ def make_accelerometry_unpacker():
     fmt = '<' + ''.join(mapping.values())
     names = list(mapping.keys())
     unpacker = bitstruct.compile(fmt, names=names)
+    # decode with bit reversal
     return lambda seq: unpacker.unpack(bytes(reverse_bits8(seq)))
 
 
@@ -422,9 +426,9 @@ class GeneralDataMessage(StreamingMessage):
         self.unused1 = parse_num(payload[45:47], False, inval=0xFFFF)
         # denoted as unused
         self.unused2 = parse_num(payload[47:49], False, inval=0xFFFF)
-        # undocumented
+        # different levels
         self.rog = parse_num(payload[49:51], False, inval=0xFFFF)
-        # undocumented
+        # different levels
         self.alarm = parse_num(payload[49:51], False, inval=0xFFFF)
         # bit packed status
         status = parse_num(payload[51:53], False)
@@ -491,7 +495,7 @@ class SummaryDataMessageV2(SummaryDataMessage):
         self.skin_temperature = parse_num(payload[14:16], True, inval=0x8000) * 0.1
         # in degrees, -180 to 180, res 1
         self.posture = parse_num(payload[16:18], True, inval=0x8000)
-        # 0...16, res 0.01
+        # in VMU (g), 0...16, res 0.01
         self.activity = parse_num(payload[18:20], False, inval=0xFFFF) * 0.01
         # in g 0..16, res 0.01
         self.peak_acceleration = parse_num(payload[20:22], False, inval=0xFFFF) * 0.01
@@ -517,7 +521,7 @@ class SummaryDataMessageV2(SummaryDataMessage):
         self.system_confidence = parse_num(payload[37:38], False, inval=0xFF)
         # in nS (nano-Siemens)
         self.gsr = parse_num(payload[38:40], False, inval=0xFFFF)
-        # ??
+        # different levels
         self.rog = parse_num(payload[40:42], False, inval=0)
         # in g, -16..16, res 0.01
         self.vertical_accel_min = parse_num(payload[42:44], True, inval=0x8000) * 0.01
@@ -533,14 +537,14 @@ class SummaryDataMessageV2(SummaryDataMessage):
         self.sagittal_accel_peak = parse_num(payload[52:54], True, inval=0x8000) * 0.01
         # in deg C, 0...100, res 0.1
         self.device_internal_temp = parse_num(payload[54:56], True, inval=0x8000) * 0.1
-        # ??
+        # complex payload
         status_info = parse_num(payload[56:58], False, inval=0)
         self._decode_status_info(status_info)
         # 0...254 (unitless), converted to percent
         self.link_quality = parse_num(payload[58:59], False, inval=0xFF)*100/254
-        # -127...127
+        # in dB, -127...127
         self.rssi = parse_num(payload[59:60], False, inval=0x80)
-        # -30..20
+        # in dBm, -30..20
         self.tx_power = parse_num(payload[60:61], False, inval=0x80)
         # in dec C, 33...41, res 0.1
         self.estimated_core_temperature = parse_num(payload[61:63], False, inval=0xFFFF) * 0.1
@@ -605,16 +609,16 @@ class SummaryDataMessageV3(SummaryDataMessage):
         self.heart_rate_confidence = parse_num(payload[27:28], False)
         # 0...65534
         self.heart_rate_variability = parse_num(payload[28:30], False, inval=0xFFFF)
-        # custom
+        # different levels
         self.rog = parse_num(payload[30:32], False, inval=0)
         # custom structure
         status_info = parse_num(payload[32:34], False, inval=0)
         self._decode_status_info(status_info)
-        # 0...254 (unitless)
-        self.link_quality = parse_num(payload[34:35], False, inval=0xFF)
-        # -127...127
+        # 0...254 (unitless), converted to %
+        self.link_quality = parse_num(payload[34:35], False, inval=0xFF)*100/254
+        # in dB, -127...127
         self.rssi = parse_num(payload[35:36], False, inval=0x80)
-        # -30..20
+        # in dBm, -30..20
         self.tx_power = parse_num(payload[36:37], False, inval=0x80)
         # in dec C, 33...41, res 0.1 (only LSB given)
         self.estimated_core_temperature = parse_num([payload[37], 256], False, inval=0xFFFF) * 0.1
@@ -633,19 +637,35 @@ class SummaryDataMessageV3(SummaryDataMessage):
 class WaveformMessage(StreamingMessage):
     """A message that holds a waveform."""
 
-    def __init__(self, msgid, payload, fin, bytes_per_chunk, signed):
+    def __init__(self, msgid, payload, fin, bytes_per_chunk, vals_per_packet, signed):
+        """
+        Create a new WaveformMessage.
+
+        Args:
+            msgid: the message id
+            payload: payload bytes
+            fin: the finalizer of the message
+            bytes_per_chunk: number of bytes per repeating "chunk" in the payload
+              (each chunk has the same bit-packing pattern)
+            vals_per_packet: total values encoded in packet (needed to identify
+              truncated chunks at end of payload)
+            signed: whether the values are 2's complement signed (True) or
+              unsigned (False), or unsigned but range-shifted ('shift')
+
+        """
         super().__init__(msgid, payload, fin)
         # extract waveform, skipping the seq no & timestamp
         waveform = []
-        values_per_chunk = bytes_per_chunk*4//5
-        unpacker = make_sequence_unpacker(values_per_chunk, is_signed=signed)
+        vals_per_chunk = bytes_per_chunk*4//5  # here: 10-bit values
+        unpacker = make_sequence_unpacker(vals_per_chunk, is_signed=signed)
         for ofs in range(9, len(payload), bytes_per_chunk):
             packed = payload[ofs:ofs+bytes_per_chunk]
-            # pad to full length so we don't get decode errors
-            if len(packed) < 5:
-                # noinspection PyTypeChecker
-                packed = packed + [0] * (5 - len(packed))
+            # at the end we may have a truncated packet, need to decode fewer
+            # values
+            if vals_per_packet < vals_per_chunk:
+                unpacker = make_sequence_unpacker(vals_per_packet, is_signed=signed)
             vals = unpacker(packed)
+            vals_per_packet -= vals_per_chunk
             waveform.extend(vals)
         self.waveform = waveform
 
@@ -656,8 +676,9 @@ class ECGWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 88)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=5, signed='shift')
-        self.waveform = [w*0.025 for w in self.waveform]  # 0.025 = 1mV
+        super().__init__(msgid, payload, fin, bytes_per_chunk=5,
+                         vals_per_packet=63, signed='shift')
+        self.waveform = [w*0.025 for w in self.waveform]  # 1 unit = 0.025mV
 
 
 class BreathingWaveformMessage(WaveformMessage):
@@ -666,7 +687,8 @@ class BreathingWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 32)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=5, signed='shift')
+        super().__init__(msgid, payload, fin, bytes_per_chunk=5,
+                         vals_per_packet=18, signed='shift')
 
 
 class AccelerometerWaveformMessage(WaveformMessage):
@@ -675,7 +697,8 @@ class AccelerometerWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 84)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=15, signed='shift')
+        super().__init__(msgid, payload, fin, bytes_per_chunk=15,
+                         vals_per_packet=3*20, signed='shift')
         self.accel_x = self.waveform[::3]
         self.accel_y = self.waveform[1::3]
         self.accel_z = self.waveform[2::3]
@@ -688,7 +711,8 @@ class Accelerometer100MgWaveformMessage(WaveformMessage):
 
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 84)
-        super().__init__(msgid, payload, fin, bytes_per_chunk=15, signed=True)
+        super().__init__(msgid, payload, fin, bytes_per_chunk=15,
+                         vals_per_packet=3*20, signed=True)
         waveform = [w*0.1 for w in self.waveform]
         # in units of g, res 0.1
         self.accel_x = waveform[::3]
@@ -704,11 +728,13 @@ class RtoRMessage(StreamingMessage):
         self.assert_length(payload, 45)
         super().__init__(msgid, payload, fin)
         # 16-bit values of alternating sign
-        self.waveform = [parse_num(payload[ofs:ofs+2], True) for ofs in range(9, len(payload), 2)]
+        self.waveform = [parse_num(payload[ofs:ofs+2], True)
+                         for ofs in range(9, len(payload), 2)]
 
 
 class EventMessage(StreamingMessage):
 
+    # map of known event codes
     event_map = {
         0x0040: 'button press',
         0x0041: 'emergency button press',
@@ -726,7 +752,8 @@ class EventMessage(StreamingMessage):
     def __init__(self, msgid, payload, fin):
         super().__init__(msgid, payload, fin)
         self.event_code = parse_num(payload[9:11], False)
-        self.event_string = EventMessage.event_map.get(self.event_code, 'unknown')
+        self.event_string = EventMessage.event_map.get(self.event_code, f'unknown:{self.event_code}')
+        # event-specific data (raw bytes/ints)
         self.event_data = payload[11:]
 
 
