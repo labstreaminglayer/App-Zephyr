@@ -19,6 +19,7 @@ def add_manufacturer(desc):
     acq.append_child_value('model', 'Zephyr BioHarness')
 
 
+# noinspection PyUnusedLocal
 async def enable_ecg(link, nameprefix, idprefix, **kwargs):
     """Enable the ECG data stream."""
     info = pylsl.StreamInfo(nameprefix+'ECG', 'ECG', 1,
@@ -37,6 +38,7 @@ async def enable_ecg(link, nameprefix, idprefix, **kwargs):
     await link.toggle_ecg(on_ecg)
 
 
+# noinspection PyUnusedLocal
 async def enable_respiration(link, nameprefix, idprefix, **kwargs):
     """Enable the respiration data stream."""
     info = pylsl.StreamInfo(nameprefix+'Resp', 'Respiration', 1,
@@ -55,6 +57,7 @@ async def enable_respiration(link, nameprefix, idprefix, **kwargs):
     await link.toggle_breathing(on_breathing)
 
 
+# noinspection PyUnusedLocal
 async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
     """Enable the accelerometer data stream."""
     info = pylsl.StreamInfo(nameprefix+'Accel', 'Mocap', 3,
@@ -76,6 +79,7 @@ async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
     await link.toggle_accel100mg(on_accel)
 
 
+# noinspection PyUnusedLocal
 async def enable_rtor(link, nameprefix, idprefix, **kwargs):
     """Enable the respiration data stream."""
     info = pylsl.StreamInfo(nameprefix+'RtoR', 'Misc', 1,
@@ -84,7 +88,8 @@ async def enable_rtor(link, nameprefix, idprefix, **kwargs):
     desc = info.desc()
     chn = desc.append_child('channels').append_child('channel')
     chn.append_child_value('label', 'RtoR')
-    chn.append_child_value('type', 'Misc')  # TODO: unit
+    chn.append_child_value('unit', 'milliseconds')
+    chn.append_child_value('type', 'Misc')
 
     add_manufacturer(desc)
     outlet = pylsl.StreamOutlet(info)
@@ -114,6 +119,7 @@ async def enable_events(link, nameprefix, idprefix, **kwargs):
     await link.toggle_events(on_event)
 
 
+# noinspection PyUnusedLocal
 async def enable_summary(link, nameprefix, idprefix, **kwargs):
     """Enable the summary data stream."""
     # we're delaying creation of these objects until we got data since we don't
@@ -132,13 +138,18 @@ async def enable_summary(link, nameprefix, idprefix, **kwargs):
             add_manufacturer(desc)
             chns = desc.append_child('channels')
             for key in content:
-                chns.append_child('channel').append_child_value('label', key)
+                chn = chns.append_child('channel')
+                chn.append_child_value('label', key)
+                unit = get_unit(key)
+                if unit is not None:
+                    chn.append_child_value('unit', unit)
             outlet = pylsl.StreamOutlet(info)
         outlet.push_sample(list(content.values()))
 
     await link.toggle_summary(on_summary)
 
 
+# noinspection PyUnusedLocal
 async def enable_general(link, nameprefix, idprefix, **kwargs):
     """Enable the general data stream."""
     # we're delaying creation of these objects until we got data since we're
@@ -157,7 +168,11 @@ async def enable_general(link, nameprefix, idprefix, **kwargs):
             add_manufacturer(desc)
             chns = desc.append_child('channels')
             for key in content:
-                chns.append_child('channel').append_child_value('label', key)
+                chn = chns.append_child('channel')
+                chn.append_child_value('label', key)
+                unit = get_unit(key)
+                if unit is not None:
+                    chn.append_child_value('unit', unit)
             outlet = pylsl.StreamOutlet(info)
         outlet.push_sample(list(content.values()))
 

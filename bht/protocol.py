@@ -16,7 +16,8 @@ __all__ = ['MessageConstants', 'Message', 'MC', 'MI', 'encode_message',
            'StreamingMessage', 'GeneralDataMessage', 'SummaryDataMessageV2',
            'SummaryDataMessageV3', 'WaveformMessage', 'ECGWaveformMessage',
            'BreathingWaveformMessage', 'Accelerometer100MgWaveformMessage',
-           'AccelerometerWaveformMessage', 'RtoRMessage', 'EventMessage']
+           'AccelerometerWaveformMessage', 'RtoRMessage', 'EventMessage',
+           'get_unit']
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,79 @@ transmit_state2data_packet = {
     MI.SetExtendedDataPacketTransmitState: MI.ExtendedDataPacket,
     MI.SetSummaryDataPacketUpdateRate: MI.SummaryDataPacket
 }
+
+# known units for various parameters
+parameter_units = {
+    'activity_unreliable': 'binary',
+    'avg_rate_of_force_development': 'N/s',
+    'avg_step_impulse': 'Ns',
+    'avg_step_period': 'seconds',
+    'battery_percent': 'percent',
+    'battery_voltage': 'Volts',
+    'bound_count': 'count',
+    'br_amplitude_high': 'binary',
+    'br_amplitude_low': 'binary',
+    'br_amplitude_variance_high': 'binary',
+    'breathing_rate_confidence': 'percent',
+    'breathing_wave_amplitude': 'unnormalized',
+    'breathing_wave_noise': 'unnormalized',
+    'button_pressed': 'binary',
+    'device_internal_temp': 'degrees C',
+    'device_worn_confidence': 'normalized',
+    'ecg_amplitude': 'Volts',
+    'ecg_noise': 'Volts',
+    'estimated_core_temp_unreliable': 'binary',
+    'estimated_core_temperature': 'degrees C',
+    'external_sensors_connected': 'binary',
+    'gsr': 'nanosiemens',
+    'heart_rate': 'BPM',
+    'heart_rate_confidence': 'percent',
+    'heart_rate_is_low_quality': 'binary',
+    'heart_rate_unreliable': 'binary',
+    'hrv_unreliable': 'binary',
+    'impact_count3g': 'count',
+    'impact_count7g': 'count',
+    'impulse_load': 'Ns',
+    'jump_count': 'count',
+    'last_jump_flight_time': 'seconds',
+    'lat_degrees': 'degrees',
+    'lat_minutes': 'minutes',
+    'lateral_accel_min': 'g',
+    'lateral_accel_peak': 'g',
+    'link_quality': 'percent',
+    'long_degrees': 'degrees',
+    'long_minutes': 'minutes',
+    'not_fitted_to_garment': 'binary',
+    'peak_accel_phi': 'degrees',
+    'peak_accel_theta': 'degrees',
+    'peak_acceleration': 'g',
+    'physio_monitor_worn': 'binary',
+    'posture': 'degrees',
+    'posture_unreliable': 'binary',
+    'qual_indication': 'binary',
+    'resp_rate_high': 'binary',
+    'resp_rate_low': 'binary',
+    'respiration_rate': 'BPM',
+    'respiration_rate_unreliable': 'binary',
+    'resting_state_detected': 'binary',
+    'rssi': 'unnormalized',
+    'run_step_count': 'count',
+    'sagittal_accel_min': 'g',
+    'sagittal_accel_peak': 'g',
+    'skin_temperature': 'degrees C',
+    'skin_temperature_unreliable': 'binary',
+    'system_confidence': 'percent',
+    'ui_button_pressed': 'binary',
+    'usb_power_connected': 'binary',
+    'vertical_accel_min': 'g',
+    'vertical_accel_peak': 'g',
+    'walk_step_count': 'count'
+}
+
+
+def get_unit(param):
+    """Get the unit for a named parameter."""
+    return parameter_units.get(param, None)
 
 
 @functools.lru_cache(6)
@@ -459,8 +533,8 @@ class SummaryDataMessageV2(SummaryDataMessage):
         # ??
         status_info = parse_num(payload[56:58], False, inval=0)
         self._decode_status_info(status_info)
-        # 0...254 (unitless)
-        self.link_quality = parse_num(payload[58:59], False, inval=0xFF)
+        # 0...254 (unitless), converted to percent
+        self.link_quality = parse_num(payload[58:59], False, inval=0xFF)*100/254
         # -127...127
         self.rssi = parse_num(payload[59:60], False, inval=0x80)
         # -30..20
@@ -625,8 +699,8 @@ class RtoRMessage(StreamingMessage):
     def __init__(self, msgid, payload, fin):
         self.assert_length(payload, 45)
         super().__init__(msgid, payload, fin)
-        # 16-bit values
-        self.waveform = [parse_num(payload[ofs:ofs+2], False) for ofs in range(9, len(payload), 2)]
+        # 16-bit values of alternating sign
+        self.waveform = [parse_num(payload[ofs:ofs+2], True) for ofs in range(9, len(payload), 2)]
 
 
 class EventMessage(StreamingMessage):

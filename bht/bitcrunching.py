@@ -24,10 +24,10 @@ CRC_LUT = [crc8_slow([b]) for b in range(256)]
 def crc8(payload):
     """Calc a CRC8 of the given payload sequence (using a lookup table, i.e.,
     fast). This is not a standard CRC8 but BHT-specific."""
-    sum = 0
+    accum = 0
     for b in payload:
-        sum = CRC_LUT[sum ^ b]
-    return sum
+        accum = CRC_LUT[accum ^ b]
+    return accum
 
 
 def reverse_bits8_slow(n):
