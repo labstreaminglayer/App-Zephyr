@@ -275,6 +275,8 @@ async def init():
 
         logger.info('Now streaming...')
 
+    except SystemExit:
+        asyncio.get_event_loop().stop()
     except Exception as e:
         logger.exception(e)
         asyncio.get_event_loop().stop()
