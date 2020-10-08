@@ -21,7 +21,7 @@ def add_manufacturer(desc):
 
 # noinspection PyUnusedLocal
 async def enable_ecg(link, nameprefix, idprefix, **kwargs):
-    """Enable the ECG data stream."""
+    """Enable the ECG data stream. This is the raw ECG waveform."""
     info = pylsl.StreamInfo(nameprefix+'ECG', 'ECG', 1,
                             nominal_srate=ECGWaveformMessage.srate,
                             source_id=idprefix+'-ECG')
@@ -41,7 +41,8 @@ async def enable_ecg(link, nameprefix, idprefix, **kwargs):
 
 # noinspection PyUnusedLocal
 async def enable_respiration(link, nameprefix, idprefix, **kwargs):
-    """Enable the respiration data stream."""
+    """Enable the respiration data stream. This is the raw respiration (chest
+    expansion) waveform."""
     info = pylsl.StreamInfo(nameprefix+'Resp', 'Respiration', 1,
                             nominal_srate=BreathingWaveformMessage.srate,
                             source_id=idprefix+'-Resp')
@@ -61,7 +62,8 @@ async def enable_respiration(link, nameprefix, idprefix, **kwargs):
 
 # noinspection PyUnusedLocal
 async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
-    """Enable the accelerometer data stream."""
+    """Enable the accelerometer data stream. This is a 3-channel stream in units
+    of 1 g (earth gravity)."""
     info = pylsl.StreamInfo(nameprefix+'Accel100mg', 'Mocap', 3,
                             nominal_srate=Accelerometer100MgWaveformMessage.srate,
                             source_id=idprefix+'-Accel100mg')
@@ -83,7 +85,8 @@ async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
 
 # noinspection PyUnusedLocal
 async def enable_accel(link, nameprefix, idprefix, **kwargs):
-    """Enable the regular accelerometer data stream."""
+    """Enable the regular accelerometer data stream. This is a 3-channel stream
+    with slightly higher res than accel100mg (I believe around 2x), but """
     info = pylsl.StreamInfo(nameprefix+'Accel', 'Mocap', 3,
                             nominal_srate=AccelerometerWaveformMessage.srate,
                             source_id=idprefix+'-Accel')
@@ -105,7 +108,9 @@ async def enable_accel(link, nameprefix, idprefix, **kwargs):
 
 # noinspection PyUnusedLocal
 async def enable_rtor(link, nameprefix, idprefix, **kwargs):
-    """Enable the respiration data stream."""
+    """Enable the RR interval data stream. This has the interval between the
+    most recent two ECG R-waves, in ms (held constant until the next R-peak),
+    and the sign of the reading alternates with each new R peak."""
     info = pylsl.StreamInfo(nameprefix+'RtoR', 'Misc', 1,
                             nominal_srate=RtoRMessage.srate,
                             source_id=idprefix+'-RtoR')
@@ -125,7 +130,8 @@ async def enable_rtor(link, nameprefix, idprefix, **kwargs):
 
 
 async def enable_events(link, nameprefix, idprefix, **kwargs):
-    """Enable the respiration data stream."""
+    """Enable the events data stream. This has a few system events like button
+    pressed, battery low, worn status changed."""
     info = pylsl.StreamInfo(nameprefix+'Markers', 'Markers', 1,
                             nominal_srate=0,
                             channel_format=pylsl.cf_string,
@@ -147,7 +153,8 @@ async def enable_events(link, nameprefix, idprefix, **kwargs):
 
 # noinspection PyUnusedLocal
 async def enable_summary(link, nameprefix, idprefix, **kwargs):
-    """Enable the summary data stream."""
+    """Enable the summary data stream. This has most of the derived data
+    channels in it."""
     # we're delaying creation of these objects until we got data since we don't
     # know in advance if we're getting summary packet V2 or V3
     info, outlet = None, None
@@ -177,7 +184,8 @@ async def enable_summary(link, nameprefix, idprefix, **kwargs):
 
 # noinspection PyUnusedLocal
 async def enable_general(link, nameprefix, idprefix, **kwargs):
-    """Enable the general data stream."""
+    """Enable the general data stream. This has summary metrics, but fewer than
+    the summary stream, plus a handful of less-useful channels."""
     # we're delaying creation of these objects until we got data since we're
     # deriving the channel count and channel labels from the data packet
     info, outlet = None, None
