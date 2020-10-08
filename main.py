@@ -105,7 +105,7 @@ async def enable_accel(link, nameprefix, idprefix, **kwargs):
 
 # noinspection PyUnusedLocal
 async def enable_rtor(link, nameprefix, idprefix, **kwargs):
-    """Enable the respiration data stream."""
+    """Enable the RR interval data stream."""
     info = pylsl.StreamInfo(nameprefix+'RtoR', 'Misc', 1,
                             nominal_srate=RtoRMessage.srate,
                             source_id=idprefix+'-RtoR')
@@ -125,7 +125,7 @@ async def enable_rtor(link, nameprefix, idprefix, **kwargs):
 
 
 async def enable_events(link, nameprefix, idprefix, **kwargs):
-    """Enable the respiration data stream."""
+    """Enable the events data stream."""
     info = pylsl.StreamInfo(nameprefix+'Markers', 'Markers', 1,
                             nominal_srate=0,
                             channel_format=pylsl.cf_string,
