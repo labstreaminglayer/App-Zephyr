@@ -37,6 +37,10 @@ class BioHarness:
         self.io = BioharnessIO(address, port, daemon=True)
         self.io._handle_message = self._dispatch_message
 
+    def shutdown(self):
+        """Shut down the link."""
+        self.io.shutdown()
+
     # --- various getters ---
 
     async def get_serial_number(self):

@@ -225,8 +225,12 @@ enablers = {
     'general': enable_general,
 }
 
+# our BioHarness link
+link = None
+
 
 async def init():
+    global link
     try:
         # parse args
         p = argparse.ArgumentParser(
@@ -291,4 +295,12 @@ async def init():
 
 if __name__ == "__main__":
     asyncio.ensure_future(init())
-    asyncio.get_event_loop().run_forever()
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        logger.info("Ctrl-C pressed.")
+    finally:
+        if link:
+            link.shutdown()
+        loop.close()
