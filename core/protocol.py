@@ -217,7 +217,7 @@ def make_sequence_unpacker(vals_per_chunk, is_signed=False, bits_per_val=10):
 
 def make_gps_pos_unpacker():
     """Create a callable that can be used to unpack a GPS position data structure
-    from its custom bit-crushed representation used by BHT."""
+    from its compressed representation."""
     layout = {
         'lat_degrees': 'u7',
         'lat_minutes': 'u6',
@@ -242,7 +242,7 @@ def make_gps_pos_unpacker():
 
 def make_accelerometry_unpacker():
     """Create a callable that can be used to unpack an accelerometry data
-    structure from its custom bit-crushed representation used by BHT."""
+    structure from its compressed representation."""
     mapping = {
         'impulse_load': 'u20',  # Ns
         'walk_step_count': 'u18',
@@ -358,61 +358,33 @@ class GeneralDataMessage(StreamingMessage):
     def __init__(self, msgid, payload, fin=MC.ETX):
         self.assert_length(payload, 53)
         super().__init__(msgid, payload, fin)
-        # in BPM; 0...240
         self.heart_rate = parse_num(payload[9:11], False, inval=0xFFFF)
-        # per minute; 0..70, res 0.1
         self.respiration_rate = parse_num(payload[11:13], False, inval=0xFFFF) * 0.1
-        # in deg C, 0...60, res 0.1 (but signed)
         self.skin_temperature = parse_num(payload[13:15], True, inval=0x8000) * 0.1
-        # in degrees, -180 to 180, res 1
         self.posture = parse_num(payload[15:17], True, inval=0x8000)
-        # in VMU, 0...16, res 0.01
         self.vmu_activity = parse_num(payload[17:19], False, inval=0xFFFF) * 0.01
-        # in g 0..16, res 0.01
         self.peak_acceleration = parse_num(payload[19:21], False, inval=0xFFFF) * 0.01
-        # in Volts 0...4.2, res 0.001
         self.battery_voltage = parse_num(payload[21:23], False, inval=0xFFFF) * 0.001
-        # LSB 0...65535
         self.breathing_wave_amplitude = parse_num(payload[23:25], False, inval=0xFFFF)
-        # volts, 0...0.05, res 0.000001
         self.ecg_amplitude = parse_num(payload[25:27], False, inval=0xFFFF) * 0.000001
-        # volts, 0...0.05, res 0.000001 (noise floor?)
         self.ecg_noise = parse_num(payload[27:29], False, inval=0xFFFF) * 0.000001
-        # in g, -16..16, res 0.01
         self.vertical_accel_min = parse_num(payload[29:31], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.vertical_accel_peak = parse_num(payload[31:33], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.lateral_accel_min = parse_num(payload[33:35], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.lateral_accel_peak = parse_num(payload[35:37], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.sagittal_accel_min = parse_num(payload[37:39], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.sagittal_accel_peak = parse_num(payload[39:41], True, inval=0x8000) * 0.01
-        # zephyr system channel (undocumented)
         self.system_channel = parse_num(payload[41:43], False)
-        # in nS (nano-Siemens)
         self.gsr = parse_num(payload[43:45], False, inval=0xFFFF)
-        # denoted as unused
         self.unused1 = parse_num(payload[45:47], False, inval=0xFFFF)
-        # denoted as unused
         self.unused2 = parse_num(payload[47:49], False, inval=0xFFFF)
-        # different levels
         self.rog = parse_num(payload[49:51], False, inval=0xFFFF)
-        # different levels
         self.alarm = parse_num(payload[49:51], False, inval=0xFFFF)
-        # bit packed status
         status = parse_num(payload[51:53], False)
-        # 1 if physiological monitor is worn
         self.physio_monitor_worn = status & (2**15) > 0
-        # 1 if UI button is pressed
         self.ui_button_pressed = status & (2 ** 14) > 0
-        # 1 if low ("HR coasting")
         self.heart_rate_is_low_quality = status & (2 ** 13) > 0
-        # 1 if external sensors are connected
         self.external_sensors_connected = status & (2 ** 12) > 0
-        # in percent
         self.battery_percent = status & 127
 
 
@@ -421,31 +393,18 @@ class SummaryDataMessage(StreamingMessage):
 
     def _decode_status_info(self, status_info):
         """Parse status info word and write into state."""
-        # 0...1 in steps of 0.25
         self.device_worn_confidence = 1 - (status_info & 3)/3
-        # 1 if pressed
         self.button_pressed = (status_info & 2**2) > 0
-        # 1 if not fitted
         self.not_fitted_to_garment = (status_info & 2**3) > 0
-        # 1 if unreliable
         self.heart_rate_unreliable = (status_info & 2**4) > 0
-        # 1 if unreliable
         self.respiration_rate_unreliable = (status_info & 2**5) > 0
-        # 1 if unreliable
         self.skin_temperature_unreliable = (status_info & 2**6) > 0
-        # 1 if unreliable
         self.posture_unreliable = (status_info & 2**7) > 0
-        # 1 if unreliable
         self.activity_unreliable = (status_info & 2**8) > 0
-        # 1 if unreliable
         self.hrv_unreliable = (status_info & 2**9) > 0
-        # 1 if unreliable
         self.estimated_core_temp_unreliable = (status_info & 2**10) > 0
-        # 1 if connected to USB power source
         self.usb_power_connected = (status_info & 2**11) > 0
-        # 1 if subject is in resting state
         self.resting_state_detected = (status_info & 2**14) > 0
-        # 1 if connected
         self.external_sensors_connected = (status_info & 2**15) > 0
 
 
@@ -459,87 +418,47 @@ class SummaryDataMessageV2(SummaryDataMessage):
         super().__init__(msgid, payload, fin)
         ver = payload[9]
         assert ver == 2, """Version must be 2."""
-        # in BPM; 0...240
         self.heart_rate = parse_num(payload[10:12], False, inval=0xFFFF)
-        # per minute; 0..70, res 0.1
         self.respiration_rate = parse_num(payload[12:14], False, inval=0xFFFF) * 0.1
-        # in deg C, 0...60, res 0.1 (but signed)
         self.skin_temperature = parse_num(payload[14:16], True, inval=0x8000) * 0.1
-        # in degrees, -180 to 180, res 1
         self.posture = parse_num(payload[16:18], True, inval=0x8000)
-        # in VMU (g), 0...16, res 0.01
         self.activity = parse_num(payload[18:20], False, inval=0xFFFF) * 0.01
-        # in g 0..16, res 0.01
         self.peak_acceleration = parse_num(payload[20:22], False, inval=0xFFFF) * 0.01
-        # in Volts 0...4.2, res 0.001
         self.battery_voltage = parse_num(payload[22:24], False, inval=0xFFFF) * 0.001
-        # in %, 0...100
         self.battery_percent = parse_num(payload[24:25], False, inval=0xFF)
-        # LSB 0...65535
         self.breathing_wave_amplitude = parse_num(payload[25:27], False, inval=0xFFFF)
-        # LSB 0...65535
         self.breathing_wave_noise = parse_num(payload[27:29], False, inval=0xFFFF)
-        # in %, 0...100
         self.breathing_rate_confidence = parse_num(payload[29:30], False, inval=0xFF)
-        # volts, 0...0.05, res 0.000001
         self.ecg_amplitude = parse_num(payload[30:32], False, inval=0xFFFF) * 0.000001
-        # volts, 0...0.05, res 0.000001 (noise floor?)
         self.ecg_noise = parse_num(payload[32:34], False, inval=0xFFFF) * 0.000001
-        # in %, 0...100
         self.heart_rate_confidence = parse_num(payload[34:35], False, inval=0xFF)
-        # 0...65534
         self.heart_rate_variability = parse_num(payload[35:37], False, inval=0xFFFF)
-        # in %, 0...100
         self.system_confidence = parse_num(payload[37:38], False, inval=0xFF)
-        # in nS (nano-Siemens)
         self.gsr = parse_num(payload[38:40], False, inval=0xFFFF)
-        # different levels
         self.rog = parse_num(payload[40:42], False, inval=0)
-        # in g, -16..16, res 0.01
         self.vertical_accel_min = parse_num(payload[42:44], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.vertical_accel_peak = parse_num(payload[44:46], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.lateral_accel_min = parse_num(payload[46:48], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.lateral_accel_peak = parse_num(payload[48:50], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.sagittal_accel_min = parse_num(payload[50:52], True, inval=0x8000) * 0.01
-        # in g, -16..16, res 0.01
         self.sagittal_accel_peak = parse_num(payload[52:54], True, inval=0x8000) * 0.01
-        # in deg C, 0...100, res 0.1
         self.device_internal_temp = parse_num(payload[54:56], True, inval=0x8000) * 0.1
-        # complex payload
         status_info = parse_num(payload[56:58], False, inval=0)
         self._decode_status_info(status_info)
-        # 0...254 (unitless), converted to percent
         self.link_quality = parse_num(payload[58:59], False, inval=0xFF)*100/254
-        # in dB, -127...127
         self.rssi = parse_num(payload[59:60], False, inval=0x80)
-        # in dBm, -30..20
         self.tx_power = parse_num(payload[60:61], False, inval=0x80)
-        # in dec C, 33...41, res 0.1
         self.estimated_core_temperature = parse_num(payload[61:63], False, inval=0xFFFF) * 0.1
-        # 0...645534
         self.aux_adc_chan1 = parse_num(payload[63:65], False, inval=0xFFFF)
-        # 0...645534
         self.aux_adc_chan2 = parse_num(payload[65:67], False, inval=0xFFFF)
-        # 0...645534
         self.aux_adc_chan3 = parse_num(payload[67:69], False, inval=0xFFFF)
-        # custom format
         ext_status_info = parse_num(payload[69:71], False, inval=0xFFFF)
         flags_valid = 0 if (ext_status_info & 2**15) > 0 else math.nan
-        # 1 if low
         self.resp_rate_low = (ext_status_info & 2 ** 0) > 0 + flags_valid
-        # 1 if high
         self.resp_rate_high = (ext_status_info & 2 ** 1) > 0 + flags_valid
-        # 1 if low
         self.br_amplitude_low = (ext_status_info & 2 ** 2) > 0 + flags_valid
-        # 1 if high
         self.br_amplitude_high = (ext_status_info & 2 ** 3) > 0 + flags_valid
-        # 1 if high
         self.br_amplitude_variance_high = (ext_status_info & 2 ** 4) > 0 + flags_valid
-        # 0 running, 1 failed, 2 passed, 3 interrupted
         self.br_signal_eval_state = (ext_status_info >> 5) & 3 + flags_valid
 
 
@@ -559,51 +478,31 @@ class SummaryDataMessageV3(SummaryDataMessage):
         super().__init__(msgid, payload, fin)
         ver = payload[9]
         assert ver == 3, """Version must be 3."""
-        # in BPM; 0...240
         self.heart_rate = parse_num(payload[10:12], False, inval=0xFFFF)
-        # per minute; 0..70, res 0.1
         self.respiration_rate = parse_num(payload[12:14], False, inval=0xFFFF) * 0.1
-        # in degrees, -180 to 180, res 1
         self.posture = parse_num(payload[14:16], True, inval=0x8000)
-        # 0...16, res 0.01
         self.activity = parse_num(payload[16:18], False, inval=0xFFFF) * 0.01
-        # in g 0..16, res 0.01
         self.peak_acceleration = parse_num(payload[18:20], False, inval=0xFFFF) * 0.01
-        # in %, 0...100
         self.battery_percent = parse_num(payload[20:21], False)
-        # LSB 0...65535
         self.breathing_wave_amplitude = parse_num(payload[21:23], False, inval=0xFFFF)
-        # volts, 0...0.05, res 0.000001
         self.ecg_amplitude = parse_num(payload[23:25], False, inval=0xFFFF) * 0.000001
-        # volts, 0...0.05, res 0.000001 (noise floor?)
         self.ecg_noise = parse_num(payload[25:27], False, inval=0xFFFF) * 0.000001
-        # in %, 0...100
         self.heart_rate_confidence = parse_num(payload[27:28], False)
-        # 0...65534
         self.heart_rate_variability = parse_num(payload[28:30], False, inval=0xFFFF)
-        # different levels
         self.rog = parse_num(payload[30:32], False, inval=0)
-        # custom structure
         status_info = parse_num(payload[32:34], False, inval=0)
         self._decode_status_info(status_info)
-        # 0...254 (unitless), converted to %
         self.link_quality = parse_num(payload[34:35], False, inval=0xFF)*100/254
-        # in dB, -127...127
         self.rssi = parse_num(payload[35:36], False, inval=0x80)
-        # in dBm, -30..20
         self.tx_power = parse_num(payload[36:37], False, inval=0x80)
-        # in dec C, 33...41, res 0.1 (only LSB given)
         self.estimated_core_temperature = parse_num([payload[37], 256], False, inval=0xFFFF) * 0.1
-        # GPS position data
         self.__dict__.update(SummaryDataMessageV3.gps_pos_unpacker(payload[38:48]))
-        # speed
         self.gps_speed = parse_num(payload[48:50], False) & 0x3FFF
-        # accelerometry
         self.__dict__.update(SummaryDataMessageV3.accelerometry_unpacker(payload[51:71]))
-        self.avg_rate_of_force_development *= 0.01  # N/s
-        self.avg_step_impulse *= 0.01  # Ns
-        self.avg_step_period *= 0.001  # s
-        self.last_jump_flight_time *= 0.01  # s
+        self.avg_rate_of_force_development *= 0.01
+        self.avg_step_impulse *= 0.01
+        self.avg_step_period *= 0.001
+        self.last_jump_flight_time *= 0.01
 
 
 class WaveformMessage(StreamingMessage):
@@ -650,7 +549,7 @@ class ECGWaveformMessage(WaveformMessage):
         self.assert_length(payload, 88)
         super().__init__(msgid, payload, fin, bytes_per_chunk=5,
                          vals_per_packet=63, signed='shift')
-        self.waveform = [w*0.025 for w in self.waveform]  # 1 unit = 0.025mV
+        self.waveform = [w*0.025 for w in self.waveform]  # to mV
 
 
 class BreathingWaveformMessage(WaveformMessage):
@@ -685,8 +584,7 @@ class Accelerometer100MgWaveformMessage(WaveformMessage):
         self.assert_length(payload, 84)
         super().__init__(msgid, payload, fin, bytes_per_chunk=15,
                          vals_per_packet=3*20, signed=True)
-        waveform = [w*0.1 for w in self.waveform]
-        # in units of g, res 0.1
+        waveform = [w*0.1 for w in self.waveform]  # to g
         self.accel_x = waveform[::3]
         self.accel_y = waveform[1::3]
         self.accel_z = waveform[2::3]
@@ -725,7 +623,7 @@ class EventMessage(StreamingMessage):
         super().__init__(msgid, payload, fin)
         self.event_code = parse_num(payload[9:11], False)
         self.event_string = EventMessage.event_map.get(self.event_code, f'unknown:{self.event_code}')
-        # event-specific data (we just store the bytes -- see vendor SDK manual
+        # event-specific data (we just store the bytes; see vendor SDK manual
         # for the interpretation)
         self.event_data = payload[11:]
 
