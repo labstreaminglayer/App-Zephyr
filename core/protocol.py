@@ -1,15 +1,14 @@
 """Protocol definitions for Zephyr BioHarness and byte stream encoding/decoding
-logic."""
+logic. This implements only a fraction of the device functionality as needed for
+data streaming."""
 
 import enum
 import math
 import functools
-import time
-import datetime
 import logging
 import cbitstruct as bitstruct
 
-from .bitcrunching import crc8, reverse_bits8
+from .utilities import crc8, reverse_bits8, date2stamp_cached
 
 __all__ = ['MessageConstants', 'Message', 'MC', 'MI', 'encode_message',
            'decode_bytestream', 'periodic_messages', 'transmit_state2data_packet',
@@ -23,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 class MessageConstants(enum.IntEnum):
-    # generic constants used in BHT framing protocol
+    """Generic constants used in BHT framing protocol."""
+
     # start of text (first byte in a msg)
     STX = 0x02
     # end of text (last byte in a msg)
@@ -35,81 +35,61 @@ class MessageConstants(enum.IntEnum):
 
 
 class MessageIDs(enum.IntEnum):
+    """Various message IDs needed to implement functionality of this interface."""
 
     # --- periodic data packets sent by the device (once enabled) ---
 
-    Lifesign = 0x23  # keepalive handshake message
-    GeneralDataPacket = 0x20  # 53-byte payload with various slow changing parameters
-    BreathingWaveformPacket = 0x21  # 32-byte payload incl. 18 samples with 56ms sampling interval, bit-packed
-    ECGWaveformPacket = 0x22  # 88-byte payload incl. 63 samples of ECG (at 4ms sample interval)
-    RtoRPacket = 0x24  # 45-byte payload incl. 18 samples of R-to-R data (56ms sample ival); 16bits
-    AccelerometerPacket = 0x25  # 84-byte payload incl. 20 "sample sets" (20ms sample ival) X/Y/Z, 10bit, 15byte repeater
-    BluetoothDeviceDataPacket = 0x27  # for 3rd party devices connected to the BioHarness
-    ExtendedDataPacket = 0x28  # additional derived summary data
-    Accelerometer100MgPacket = 0x2A  # accel in units of 1/10th of a g (otherwise encoded same I think)
-    SummaryDataPacket = 0x2B  # 71-byte packet with various slow-changing params (heart rate etc) - byte 12 of the msg has the version
-    EventPacket = 0x2C  # event code and optional event-specific data
-    LoggingDataPacket = 0x3F  # if logging data were requested via send logging data
-    LiveLogAccessDataPacket = 0x60  # if requersted by live log access message
+    GeneralDataPacket = 0x20
+    BreathingWaveformPacket = 0x21
+    ECGWaveformPacket = 0x22
+    RtoRPacket = 0x24
+    AccelerometerPacket = 0x25
+    BluetoothDeviceDataPacket = 0x27
+    ExtendedDataPacket = 0x28
+    Accelerometer100MgPacket = 0x2A
+    SummaryDataPacket = 0x2B
+    EventPacket = 0x2C
+    LoggingDataPacket = 0x3F
+    LiveLogAccessDataPacket = 0x60
+
+    # keepalive message
+    Lifesign = 0x23
 
     # --- commands ---
 
-    # toggling various data streams (payload is 0 or 1)
-    SetGeneralDataPacketTransmitState = 0x14        # every ~1000ms
-    SetBreathingWaveformPacketTransmitState = 0x15  # every ~1000ms
-    SetECGWaveformPacketTransmitState = 0x16        # every 250ms
-    SetRtoRDataPacketTransmitState = 0x19           # every ~1000ms
-    SetAccelerometerPacketTransmitState = 0x1E      # every 400ms
-    SetAccelerometer100mgPacketTransmitState = 0xBC  # every 400ms
-    SetExtendedDataPacketTransmitState = 0xB8  # bit mask of what data types to enable
-    SetSummaryDataPacketUpdateRate = 0xBD  # payload is 2 bytes (ls/ms) for update period in sec.
+    # toggling various data streams
+    SetGeneralDataPacketTransmitState = 0x14
+    SetBreathingWaveformPacketTransmitState = 0x15
+    SetECGWaveformPacketTransmitState = 0x16
+    SetRtoRDataPacketTransmitState = 0x19
+    SetAccelerometerPacketTransmitState = 0x1E
+    SetAccelerometer100mgPacketTransmitState = 0xBC
+    SetExtendedDataPacketTransmitState = 0xB8
+    SetSummaryDataPacketUpdateRate = 0xBD
 
-    # queries (no payload unless otherwise noted)
+    # queries
     GetRTCDateTime = 0x08
     GetBootSoftwareVersion = 0x09
     GetApplicationSoftwareVersion = 0x0A
-    GetSerialNumber = 0x0B  # returns a 12-byte payload str (BHT35435646)
-    GetHardwarePartNumber = 0x0C  # returns 12-byte payload str (9900.0085v1a etc)
-    GetBootloaderPartNumber = 0x0D  # returns a 12-byte payload str (similar to hw part no)
-    GetApplicationPartNumber = 0x0E  # returns a 12-byte payload str
-    GetUnitMACAddress = 0x12  # returns a 17-byte payload str
-    GetUnitBluetoothFriendlyName = 0x17  # returns a 4-32 byte str ("BH " with network id appended)
-    GetBluetoothUserConfig = 0xA3  # returns some flags
-    GetBTLinkConfig = 0xA5  # returns 2 words for link timeout and lifesign period
-    GetBioHarnessUserConfig = 0xA7  # returns all manner of settings
-    GetBatteryStatus = 0xAC  # returns the voltage in mv as 2 bytes) and a percentage as a byte
-    GetAccelerometerAxisMapping = 0xB5  # returns a complex spec
-    GetAlgorithmConfig = 0xB7  # (payload is the algo type - 0..31)
-    GetROGSettings = 0x9C   # returns a complex spec
-    GetSubjectInfoSettings = 0xBF  # returns a complex spec
-    GetRemoteMACAddressAndPIN = 0xD1  # returned payload is the MAC & PIN
-    GetNetworkID = 0x11  # returned payload is a string (e.g., John Smith)
-    GetRemoteDeviceDescription = 0xD4  # returns a device number and a description
+    GetSerialNumber = 0x0B
+    GetHardwarePartNumber = 0x0C
+    GetBootloaderPartNumber = 0x0D
+    GetApplicationPartNumber = 0x0E
+    GetUnitMACAddress = 0x12
+    GetUnitBluetoothFriendlyName = 0x17
+    GetBluetoothUserConfig = 0xA3
+    GetBTLinkConfig = 0xA5
+    GetBioHarnessUserConfig = 0xA7
+    GetBatteryStatus = 0xAC
+    GetAccelerometerAxisMapping = 0xB5
+    GetAlgorithmConfig = 0xB7
+    GetROGSettings = 0x9C
+    GetSubjectInfoSettings = 0xBF
+    GetRemoteMACAddressAndPIN = 0xD1
+    GetNetworkID = 0x11
+    GetRemoteDeviceDescription = 0xD4
 
-    # benign configuration
-    SetRTCDateTime = 0x07   # complex payload
-    SetNetworkID = 0x10  # payload is a string, 2-29 chars (e.g., John Smith 5)
-
-    # not-so-benign commands
-    SetBluetoothUserConfig = 0xA2  # complex payload
-    SetBTLinkConfig = 0xA4  # complex payload
-    SetBioHarnessUserConfig = 0xA6  # complex payload
-    RebootUnit = 0x1F  # payload must be the string ZReBoot (takes ca. 5.2 seconds)
-    SetROGSettings = 0x9B   # complex payload - applicable to v1 of algo (ROG = red, orange, green)
-    BluetoothPeripheralMessage = 0xB0  # complex stuff
-    ResetConfiguration = 0xB3  # payload is 0 for factory defaults and 1 for all config except calib data
-    SetAccelerometerAxisMapping = 0xB4  # complicated axis spec
-    SetAlgorithmConfig = 0xB6  # various parameters
-    SetBioHarnessUserConfigItem = 0xB9  # number of config item
-    SetSubjectInfoSettings = 0xBE  # rather complex settings of per-subject limits etc
-    SetRemoteMACAddressAndPIN = 0xD0  # can set mac and PIN
-
-    # log access
-    GetSupportedLogFormats = 0xD5   # pass the log file number
-    ReadLoggingData = 0x01  # complex payload (byte range etc)
-    SendLoggingData = 0xE2  # request logging data to be sent using a byte range
-    DeleteLogfile = 0x02    # payload is the file number (byte)
-    LiveLogAccessCommand = 0xE5  # configure OTA log transmit while still logging...
+    # (other device commands not implemented here)
 
 
 # shorthands
@@ -136,7 +116,7 @@ transmit_state2data_packet = {
     MI.SetSummaryDataPacketUpdateRate: MI.SummaryDataPacket
 }
 
-# known units for various parameters
+# unit map needed for LSL metadata
 parameter_units = {
     'activity': 'g',
     'activity_unreliable': 'binary',
@@ -271,10 +251,10 @@ def make_accelerometry_unpacker():
         'jump_count': 'u10',
         'impact_count3g': 'u10',
         'impact_count7g': 'u10',
-        'avg_rate_of_force_development': 'u12',  # * 0.01 N/s
-        'avg_step_impulse': 'u10',  # * 0.01 Ns
-        'avg_step_period': 'u10',   # * 0.001 s
-        'last_jump_flight_time': 'u8',  # * 0.01 s
+        'avg_rate_of_force_development': 'u12',
+        'avg_step_impulse': 'u10',
+        'avg_step_period': 'u10',
+        'last_jump_flight_time': 'u8',
         'peak_accel_phi': 'u8',  # 0...180
         'peak_accel_theta': 's10',  # -179...180
     }
@@ -316,20 +296,12 @@ def parse_num(encoded, signed, *, inval=None, num_bytes=None):
     return num
 
 
-@functools.lru_cache(maxsize=5)
-def ymd2int_fast(year, month, day):
-    """Convert year, month, and day into a unix timestamp."""
-    dt = datetime.datetime(year=year, month=month, day=day)
-    stamp = time.mktime(dt.timetuple())
-    return stamp
-
-
 def parse_timestamp(encoded):
     """Parse a bytes-encoded UNIX timestamp."""
     year = parse_num(encoded[0:2], False)
     month, day = encoded[2:4]
     msec = parse_num(encoded[4:8], False)
-    stamp = ymd2int_fast(year, month, day) + msec*0.001
+    stamp = date2stamp_cached(year, month, day) + msec * 0.001
     return stamp
 
 
@@ -753,7 +725,8 @@ class EventMessage(StreamingMessage):
         super().__init__(msgid, payload, fin)
         self.event_code = parse_num(payload[9:11], False)
         self.event_string = EventMessage.event_map.get(self.event_code, f'unknown:{self.event_code}')
-        # event-specific data (raw bytes/ints)
+        # event-specific data (we just store the bytes -- see vendor SDK manual
+        # for the interpretation)
         self.event_data = payload[11:]
 
 
@@ -797,8 +770,8 @@ def encode_message(msg):
 
 
 def decode_bytestream(stream):
-    """Generator function that consumes bytes from a stream and yields Message
-    objects."""
+    """Decode a provided bytestream into Message objects; implemented as a
+    Generator that yields messages when iterated over."""
     valid_fins = (MC.ETX, MC.ACK, MC.NAK)
     # for each message...
     while True:
@@ -812,7 +785,7 @@ def decode_bytestream(stream):
         msgid = next(stream)
         known = msgid in MI.__members__.values()
         if not known:
-            logger.info("Unknown message ID encountered (%02x)" % msgid)
+            logger.info(f"Unknown message ID encountered ({hex(msgid)})")
             good = False
 
         # read payload length
@@ -854,15 +827,3 @@ def decode_bytestream(stream):
                     yield msg
             except Exception as e:
                 logger.exception(f"Message with id {msgid} was corrupted: {e}")
-
-
-def _debug_unpacker(unpacker, datadict):
-    """Helper function to debug the bit patterns read by an unpacker.
-    Use an unpacker (e.g., accelerometry), and stick in a data dict, then compare
-    the resulting bit pattern vs the table in the spec. Use values such as 0xFFFF
-    or 0xFFFF-2 to see where the different bits of a value land.
-    """
-    # use an unpacker put your bits here
-    packed = reverse_bits8(unpacker.pack(datadict))
-    # print the bytes
-    print(' '.join([f'{k:02d} {v:08b}\n' for k, v in enumerate(packed)]))

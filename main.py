@@ -1,4 +1,5 @@
-"""Command line interface or the Zephyr BioHarness LSL integration."""
+"""Command line interface for the Zephyr BioHarness LSL integration."""
+
 import logging
 import datetime
 import asyncio
@@ -6,8 +7,8 @@ import argparse
 
 import pylsl
 
-from bht import BioHarness
-from bht.protocol import *
+from core import BioHarness
+from core.protocol import *
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +290,9 @@ async def init():
 
     except SystemExit:
         asyncio.get_event_loop().stop()
+    except TimeoutError as e:
+        logger.error(f"Operation timed out: {e}")
+        asyncio.get_event_loop().stop()
     except Exception as e:
         logger.exception(e)
         asyncio.get_event_loop().stop()
@@ -302,5 +306,6 @@ if __name__ == "__main__":
         logger.info("Ctrl-C pressed.")
     finally:
         if link:
+            # noinspection PyUnresolvedReferences
             link.shutdown()
         loop.close()
