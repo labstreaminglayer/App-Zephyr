@@ -101,6 +101,8 @@ class BioharnessIO:
                 # run transmission loop and decode the resulting byte stream
                 for msg in decode_bytestream(self._transmit_loop(sock)):
                     self._handle_message(msg)
+            except RuntimeError:
+                logger.info(f"Byte stream ended")
             except IOError as e:
                 logger.error(f"Encountered IO error {e}")
                 logger.info("Attempting to reconnect...")
