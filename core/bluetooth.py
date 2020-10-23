@@ -1,8 +1,4 @@
-"""Bluetooth IO subsystem for the BioHarness.
-
-This module is mostly concerned with bluetooth message transmission, and
-handles neither the binary protocol specifics nor the high-level API.
-"""
+"""Bluetooth IO subsystem for the BioHarness."""
 
 import sys
 import time
@@ -113,7 +109,7 @@ class BioharnessIO:
 
     def _handle_message(self, msg):
         """Handle a received message."""
-        logger.debug(f"Decoded: {msg}")
+        logger.debug("Decoded: %s", msg)
         self._recv_queue.put(msg)
 
     def _transmit_loop(self, sock):
@@ -136,7 +132,7 @@ class BioharnessIO:
             # get next data packet
             data = sock.recv(256)
             if data:
-                logger.debug(f'received {len(data)} bytes of data ({data})')
+                logger.debug('received %d bytes of data (%s)', len(data), data)
             else:
                 logger.debug('recv() returned no data.')
 
@@ -148,7 +144,7 @@ class BioharnessIO:
     def _send_message(self, sock, msg):
         """Send a message and optional payload over the given socket."""
         raw = encode_message(msg)
-        logger.debug(f'Sending {msg} (bytes {raw}).')
+        logger.debug('Sending %s (bytes %s).', msg, raw)
         sock.send(raw)
 
     # noinspection PyMethodMayBeStatic

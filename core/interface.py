@@ -3,8 +3,9 @@
 import logging
 import queue
 import asyncio
+from concurrent import futures
 
-from .io import BioharnessIO
+from .bluetooth import BioharnessIO
 from .protocol import Message, MI, periodic_messages, transmit_state2data_packet
 
 logger = logging.getLogger(__name__)
@@ -163,7 +164,10 @@ class BioHarness:
         fut = self._loop.create_future()
         self._awaited_messages[msgid].put(fut)
         self._send(msgid, payload)
-        await asyncio.wait_for(fut, self._timeout)
+        try:
+            await asyncio.wait_for(fut, self._timeout)
+        except futures.TimeoutError:
+            raise TimeoutError(f"Waiting for device response to {MI(msgid).name} timed out.")
         msg = fut.result()
         msg.ensure_fin_ok()
         return msg
@@ -176,14 +180,14 @@ class BioHarness:
 
     def _dispatch_message(self, msg):
         """Function to dispatch returned messages."""
-        logger.debug(f"Gotten: {msg}")
+        logger.debug(f"Received message: %s", msg)
         if msg.msgid in self._streaming_handlers:
             # periodic / streaming data
             handler = self._streaming_handlers[msg.msgid]
             if handler:
                 self._loop.call_soon_threadsafe(handler, msg)
             else:
-                logger.info(f'Got {msg} but no handler is installed; discarding')
+                logger.debug(f'Got {msg.msgid} but no handler is installed; discarding...')
         elif msg.msgid == MI.Lifesign:
             # nothing to do in response to life-sign messages
             pass
