@@ -92,3 +92,12 @@ License
 
 This software was developed by Syntrogi Inc. dba Intheon, and is licensed under 
 the GPLv2. A copy of this license is provided in the file `COPYING`. 
+
+Known Issues
+============
+
+Python's Bluetooth (LE) support on current Mac OS appears to be in an incomplete and/or 
+broken state at this point, and this application is known to not run on Mac OS 
+Big Sur, neither with Conda's nor the default Python 3.7, or with PyBlueZ 0.23 or
+its current GitHub version (PyBlueZ 0.30). Older Mac OS versions might work but have
+not been tested.
