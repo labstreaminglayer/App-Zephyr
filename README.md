@@ -87,11 +87,16 @@ stream name prefix). See vendor manual for full details.
 * **ZephyrGeneral** an alternative set of summary metrics (subset of summary, 
   plus a handful of channels of limited utility).
     
-License
-=======
+Acknowledgements
+================
 
-This software was developed by Syntrogi Inc. dba Intheon, and is licensed under 
-the GPLv2. A copy of this license is provided in the file `COPYING`. 
+This open-source LSL application was developed and is maintained by Intheon (www.intheon.io).
+
+For support inquiries please file a GitHub issue on this repo (preferred) or contact support@intheon.io.
+
+Copyright (C) 2020-2021 Syntrogi Inc. dba Intheon.
+
+This work was funded by the Army Research Laboratory under Cooperative Agreement Number W911NF-10-2-0022.
 
 Known Issues
 ============
