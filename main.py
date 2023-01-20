@@ -272,7 +272,7 @@ async def init():
             raise ValueError(f"Unknown modalities to stream: {unknown}")
 
         # connect to bioharness
-        link = BioHarness(args.address, port=int(args.port), timeout=args.timeout)
+        link = BioHarness(args.address, port=int(args.port), timeout=int(args.timeout))
         infos = await link.get_infos()
         info_str = '\n'.join([f' * {k}: {v}' for k, v in infos.items()])
         logger.info(f"Device info is:\n{info_str}")
