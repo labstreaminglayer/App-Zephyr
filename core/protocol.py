@@ -391,8 +391,28 @@ class GeneralDataMessage(StreamingMessage):
 class SummaryDataMessage(StreamingMessage):
     """Common base class for the two versions of the summary data packet."""
 
+    device_worn_confidence = math.nan
+    button_pressed = math.nan
+    not_fitted_to_garment = math.nan
+    heart_rate_unreliable = math.nan
+    respiration_rate_unreliable = math.nan
+    skin_temperature_unreliable = math.nan
+    posture_unreliable = math.nan
+    activity_unreliable = math.nan
+    hrv_unreliable = math.nan
+    estimated_core_temp_unreliable = math.nan
+    usb_power_connected = math.nan
+    resting_state_detected = math.nan
+    external_sensors_connected = math.nan
+
     def _decode_status_info(self, status_info):
         """Parse status info word and write into state."""
+
+        isnan = status_info != status_info # NaN is the only value that is not equal to itself
+
+        if isnan:
+            return
+
         self.device_worn_confidence = 1 - (status_info & 3)/3
         self.button_pressed = (status_info & 2**2) > 0
         self.not_fitted_to_garment = (status_info & 2**3) > 0
@@ -452,7 +472,7 @@ class SummaryDataMessageV2(SummaryDataMessage):
         self.aux_adc_chan1 = parse_num(payload[63:65], False, inval=0xFFFF)
         self.aux_adc_chan2 = parse_num(payload[65:67], False, inval=0xFFFF)
         self.aux_adc_chan3 = parse_num(payload[67:69], False, inval=0xFFFF)
-        ext_status_info = parse_num(payload[69:71], False, inval=0xFFFF)
+        ext_status_info = parse_num(payload[69:71])
         flags_valid = 0 if (ext_status_info & 2**15) > 0 else math.nan
         self.resp_rate_low = (ext_status_info & 2 ** 0) > 0 + flags_valid
         self.resp_rate_high = (ext_status_info & 2 ** 1) > 0 + flags_valid
