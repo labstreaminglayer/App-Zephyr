@@ -206,7 +206,8 @@ def make_sequence_unpacker(vals_per_chunk, is_signed=False, bits_per_val=10):
 
     Returns: a list of decoded numbers
     """
-    bitfmt = f'<{"s" if is_signed == True else "u"}{bits_per_val}' * vals_per_chunk
+    bitfmt = f'<{"s" if is_signed == True else "u"}{bits_per_val}' * \
+        vals_per_chunk
     unpacker = bitstruct.compile(bitfmt)
     if is_signed == 'shift':
         return lambda seq: [v - 2**(bits_per_val - 1) if v != 0 else math.nan
@@ -307,6 +308,7 @@ def parse_timestamp(encoded):
 
 class Message:
     """A message that can be exchanged with the device (sent or received)."""
+
     def __init__(self, msgid, payload=(), fin=MC.ETX):
         self.msgid = msgid
         if not isinstance(payload, (list, tuple, bytes)):
@@ -337,12 +339,14 @@ class Message:
 
     def __str__(self):
         """Render a human-readable string."""
-        content = ', '.join([f'{k}={v}' for k, v in self.__dict__.items() if not k.startswith('_')])
+        content = ', '.join(
+            [f'{k}={v}' for k, v in self.__dict__.items() if not k.startswith('_')])
         return f'{self.__class__.__name__}({content})'
 
 
 class StreamingMessage(Message):
     """Base class for messages that have a sequence num and time stamp."""
+
     def __init__(self, msgid, payload, fin=MC.ETX):
         self.assert_length(payload, 9, at_least=True)
         super().__init__(msgid, payload, fin)
@@ -355,25 +359,53 @@ class GeneralDataMessage(StreamingMessage):
 
     srate = 1.0
 
+    device_worn_confidence = math.nan
+    button_pressed = math.nan
+    not_fitted_to_garment = math.nan
+    heart_rate_unreliable = math.nan
+    respiration_rate_unreliable = math.nan
+    skin_temperature_unreliable = math.nan
+    posture_unreliable = math.nan
+    activity_unreliable = math.nan
+    hrv_unreliable = math.nan
+    estimated_core_temp_unreliable = math.nan
+    usb_power_connected = math.nan
+    resting_state_detected = math.nan
+    external_sensors_connected = math.nan
+
     def __init__(self, msgid, payload, fin=MC.ETX):
         self.assert_length(payload, 53)
         super().__init__(msgid, payload, fin)
         self.heart_rate = parse_num(payload[9:11], False, inval=0xFFFF)
-        self.respiration_rate = parse_num(payload[11:13], False, inval=0xFFFF) * 0.1
-        self.skin_temperature = parse_num(payload[13:15], True, inval=0x8000) * 0.1
+        self.respiration_rate = parse_num(
+            payload[11:13], False, inval=0xFFFF) * 0.1
+        self.skin_temperature = parse_num(
+            payload[13:15], True, inval=0x8000) * 0.1
         self.posture = parse_num(payload[15:17], True, inval=0x8000)
-        self.vmu_activity = parse_num(payload[17:19], False, inval=0xFFFF) * 0.01
-        self.peak_acceleration = parse_num(payload[19:21], False, inval=0xFFFF) * 0.01
-        self.battery_voltage = parse_num(payload[21:23], False, inval=0xFFFF) * 0.001
-        self.breathing_wave_amplitude = parse_num(payload[23:25], False, inval=0xFFFF)
-        self.ecg_amplitude = parse_num(payload[25:27], False, inval=0xFFFF) * 0.000001
-        self.ecg_noise = parse_num(payload[27:29], False, inval=0xFFFF) * 0.000001
-        self.vertical_accel_min = parse_num(payload[29:31], True, inval=0x8000) * 0.01
-        self.vertical_accel_peak = parse_num(payload[31:33], True, inval=0x8000) * 0.01
-        self.lateral_accel_min = parse_num(payload[33:35], True, inval=0x8000) * 0.01
-        self.lateral_accel_peak = parse_num(payload[35:37], True, inval=0x8000) * 0.01
-        self.sagittal_accel_min = parse_num(payload[37:39], True, inval=0x8000) * 0.01
-        self.sagittal_accel_peak = parse_num(payload[39:41], True, inval=0x8000) * 0.01
+        self.vmu_activity = parse_num(
+            payload[17:19], False, inval=0xFFFF) * 0.01
+        self.peak_acceleration = parse_num(
+            payload[19:21], False, inval=0xFFFF) * 0.01
+        self.battery_voltage = parse_num(
+            payload[21:23], False, inval=0xFFFF) * 0.001
+        self.breathing_wave_amplitude = parse_num(
+            payload[23:25], False, inval=0xFFFF)
+        self.ecg_amplitude = parse_num(
+            payload[25:27], False, inval=0xFFFF) * 0.000001
+        self.ecg_noise = parse_num(
+            payload[27:29], False, inval=0xFFFF) * 0.000001
+        self.vertical_accel_min = parse_num(
+            payload[29:31], True, inval=0x8000) * 0.01
+        self.vertical_accel_peak = parse_num(
+            payload[31:33], True, inval=0x8000) * 0.01
+        self.lateral_accel_min = parse_num(
+            payload[33:35], True, inval=0x8000) * 0.01
+        self.lateral_accel_peak = parse_num(
+            payload[35:37], True, inval=0x8000) * 0.01
+        self.sagittal_accel_min = parse_num(
+            payload[37:39], True, inval=0x8000) * 0.01
+        self.sagittal_accel_peak = parse_num(
+            payload[39:41], True, inval=0x8000) * 0.01
         self.system_channel = parse_num(payload[41:43], False)
         self.gsr = parse_num(payload[43:45], False, inval=0xFFFF)
         self.unused1 = parse_num(payload[45:47], False, inval=0xFFFF)
@@ -393,6 +425,12 @@ class SummaryDataMessage(StreamingMessage):
 
     def _decode_status_info(self, status_info):
         """Parse status info word and write into state."""
+        isnan = status_info != status_info  # checks if NaN
+
+        if isnan:
+            logger.info("Got NaN for status_info, assuming device is worn.")
+            return
+
         self.device_worn_confidence = 1 - (status_info & 3)/3
         self.button_pressed = (status_info & 2**2) > 0
         self.not_fitted_to_garment = (status_info & 2**3) > 0
@@ -419,46 +457,67 @@ class SummaryDataMessageV2(SummaryDataMessage):
         ver = payload[9]
         assert ver == 2, """Version must be 2."""
         self.heart_rate = parse_num(payload[10:12], False, inval=0xFFFF)
-        self.respiration_rate = parse_num(payload[12:14], False, inval=0xFFFF) * 0.1
-        self.skin_temperature = parse_num(payload[14:16], True, inval=0x8000) * 0.1
+        self.respiration_rate = parse_num(
+            payload[12:14], False, inval=0xFFFF) * 0.1
+        self.skin_temperature = parse_num(
+            payload[14:16], True, inval=0x8000) * 0.1
         self.posture = parse_num(payload[16:18], True, inval=0x8000)
         self.activity = parse_num(payload[18:20], False, inval=0xFFFF) * 0.01
-        self.peak_acceleration = parse_num(payload[20:22], False, inval=0xFFFF) * 0.01
-        self.battery_voltage = parse_num(payload[22:24], False, inval=0xFFFF) * 0.001
+        self.peak_acceleration = parse_num(
+            payload[20:22], False, inval=0xFFFF) * 0.01
+        self.battery_voltage = parse_num(
+            payload[22:24], False, inval=0xFFFF) * 0.001
         self.battery_percent = parse_num(payload[24:25], False, inval=0xFF)
-        self.breathing_wave_amplitude = parse_num(payload[25:27], False, inval=0xFFFF)
-        self.breathing_wave_noise = parse_num(payload[27:29], False, inval=0xFFFF)
-        self.breathing_rate_confidence = parse_num(payload[29:30], False, inval=0xFF)
-        self.ecg_amplitude = parse_num(payload[30:32], False, inval=0xFFFF) * 0.000001
-        self.ecg_noise = parse_num(payload[32:34], False, inval=0xFFFF) * 0.000001
-        self.heart_rate_confidence = parse_num(payload[34:35], False, inval=0xFF)
-        self.heart_rate_variability = parse_num(payload[35:37], False, inval=0xFFFF)
+        self.breathing_wave_amplitude = parse_num(
+            payload[25:27], False, inval=0xFFFF)
+        self.breathing_wave_noise = parse_num(
+            payload[27:29], False, inval=0xFFFF)
+        self.breathing_rate_confidence = parse_num(
+            payload[29:30], False, inval=0xFF)
+        self.ecg_amplitude = parse_num(
+            payload[30:32], False, inval=0xFFFF) * 0.000001
+        self.ecg_noise = parse_num(
+            payload[32:34], False, inval=0xFFFF) * 0.000001
+        self.heart_rate_confidence = parse_num(
+            payload[34:35], False, inval=0xFF)
+        self.heart_rate_variability = parse_num(
+            payload[35:37], False, inval=0xFFFF)
         self.system_confidence = parse_num(payload[37:38], False, inval=0xFF)
         self.gsr = parse_num(payload[38:40], False, inval=0xFFFF)
         self.rog = parse_num(payload[40:42], False, inval=0)
-        self.vertical_accel_min = parse_num(payload[42:44], True, inval=0x8000) * 0.01
-        self.vertical_accel_peak = parse_num(payload[44:46], True, inval=0x8000) * 0.01
-        self.lateral_accel_min = parse_num(payload[46:48], True, inval=0x8000) * 0.01
-        self.lateral_accel_peak = parse_num(payload[48:50], True, inval=0x8000) * 0.01
-        self.sagittal_accel_min = parse_num(payload[50:52], True, inval=0x8000) * 0.01
-        self.sagittal_accel_peak = parse_num(payload[52:54], True, inval=0x8000) * 0.01
-        self.device_internal_temp = parse_num(payload[54:56], True, inval=0x8000) * 0.1
+        self.vertical_accel_min = parse_num(
+            payload[42:44], True, inval=0x8000) * 0.01
+        self.vertical_accel_peak = parse_num(
+            payload[44:46], True, inval=0x8000) * 0.01
+        self.lateral_accel_min = parse_num(
+            payload[46:48], True, inval=0x8000) * 0.01
+        self.lateral_accel_peak = parse_num(
+            payload[48:50], True, inval=0x8000) * 0.01
+        self.sagittal_accel_min = parse_num(
+            payload[50:52], True, inval=0x8000) * 0.01
+        self.sagittal_accel_peak = parse_num(
+            payload[52:54], True, inval=0x8000) * 0.01
+        self.device_internal_temp = parse_num(
+            payload[54:56], True, inval=0x8000) * 0.1
         status_info = parse_num(payload[56:58], False, inval=0)
         self._decode_status_info(status_info)
-        self.link_quality = parse_num(payload[58:59], False, inval=0xFF)*100/254
+        self.link_quality = parse_num(
+            payload[58:59], False, inval=0xFF)*100/254
         self.rssi = parse_num(payload[59:60], False, inval=0x80)
         self.tx_power = parse_num(payload[60:61], False, inval=0x80)
-        self.estimated_core_temperature = parse_num(payload[61:63], False, inval=0xFFFF) * 0.1
+        self.estimated_core_temperature = parse_num(
+            payload[61:63], False, inval=0xFFFF) * 0.1
         self.aux_adc_chan1 = parse_num(payload[63:65], False, inval=0xFFFF)
         self.aux_adc_chan2 = parse_num(payload[65:67], False, inval=0xFFFF)
         self.aux_adc_chan3 = parse_num(payload[67:69], False, inval=0xFFFF)
-        ext_status_info = parse_num(payload[69:71], False, inval=0xFFFF)
+        ext_status_info = parse_num(payload[69:71])
         flags_valid = 0 if (ext_status_info & 2**15) > 0 else math.nan
         self.resp_rate_low = (ext_status_info & 2 ** 0) > 0 + flags_valid
         self.resp_rate_high = (ext_status_info & 2 ** 1) > 0 + flags_valid
         self.br_amplitude_low = (ext_status_info & 2 ** 2) > 0 + flags_valid
         self.br_amplitude_high = (ext_status_info & 2 ** 3) > 0 + flags_valid
-        self.br_amplitude_variance_high = (ext_status_info & 2 ** 4) > 0 + flags_valid
+        self.br_amplitude_variance_high = (
+            ext_status_info & 2 ** 4) > 0 + flags_valid
         self.br_signal_eval_state = (ext_status_info >> 5) & 3 + flags_valid
 
 
@@ -479,26 +538,36 @@ class SummaryDataMessageV3(SummaryDataMessage):
         ver = payload[9]
         assert ver == 3, """Version must be 3."""
         self.heart_rate = parse_num(payload[10:12], False, inval=0xFFFF)
-        self.respiration_rate = parse_num(payload[12:14], False, inval=0xFFFF) * 0.1
+        self.respiration_rate = parse_num(
+            payload[12:14], False, inval=0xFFFF) * 0.1
         self.posture = parse_num(payload[14:16], True, inval=0x8000)
         self.activity = parse_num(payload[16:18], False, inval=0xFFFF) * 0.01
-        self.peak_acceleration = parse_num(payload[18:20], False, inval=0xFFFF) * 0.01
+        self.peak_acceleration = parse_num(
+            payload[18:20], False, inval=0xFFFF) * 0.01
         self.battery_percent = parse_num(payload[20:21], False)
-        self.breathing_wave_amplitude = parse_num(payload[21:23], False, inval=0xFFFF)
-        self.ecg_amplitude = parse_num(payload[23:25], False, inval=0xFFFF) * 0.000001
-        self.ecg_noise = parse_num(payload[25:27], False, inval=0xFFFF) * 0.000001
+        self.breathing_wave_amplitude = parse_num(
+            payload[21:23], False, inval=0xFFFF)
+        self.ecg_amplitude = parse_num(
+            payload[23:25], False, inval=0xFFFF) * 0.000001
+        self.ecg_noise = parse_num(
+            payload[25:27], False, inval=0xFFFF) * 0.000001
         self.heart_rate_confidence = parse_num(payload[27:28], False)
-        self.heart_rate_variability = parse_num(payload[28:30], False, inval=0xFFFF)
+        self.heart_rate_variability = parse_num(
+            payload[28:30], False, inval=0xFFFF)
         self.rog = parse_num(payload[30:32], False, inval=0)
         status_info = parse_num(payload[32:34], False, inval=0)
         self._decode_status_info(status_info)
-        self.link_quality = parse_num(payload[34:35], False, inval=0xFF)*100/254
+        self.link_quality = parse_num(
+            payload[34:35], False, inval=0xFF)*100/254
         self.rssi = parse_num(payload[35:36], False, inval=0x80)
         self.tx_power = parse_num(payload[36:37], False, inval=0x80)
-        self.estimated_core_temperature = parse_num([payload[37], 256], False, inval=0xFFFF) * 0.1
-        self.__dict__.update(SummaryDataMessageV3.gps_pos_unpacker(payload[38:48]))
+        self.estimated_core_temperature = parse_num(
+            [payload[37], 256], False, inval=0xFFFF) * 0.1
+        self.__dict__.update(
+            SummaryDataMessageV3.gps_pos_unpacker(payload[38:48]))
         self.gps_speed = parse_num(payload[48:50], False) & 0x3FFF
-        self.__dict__.update(SummaryDataMessageV3.accelerometry_unpacker(payload[51:71]))
+        self.__dict__.update(
+            SummaryDataMessageV3.accelerometry_unpacker(payload[51:71]))
         self.avg_rate_of_force_development *= 0.01
         self.avg_step_impulse *= 0.01
         self.avg_step_period *= 0.001
@@ -534,7 +603,8 @@ class WaveformMessage(StreamingMessage):
             # at the end we may have a truncated packet, need to decode fewer
             # values
             if vals_per_packet < vals_per_chunk:
-                unpacker = make_sequence_unpacker(vals_per_packet, is_signed=signed)
+                unpacker = make_sequence_unpacker(
+                    vals_per_packet, is_signed=signed)
             vals = unpacker(packed)
             vals_per_packet -= vals_per_chunk
             waveform.extend(vals)
@@ -619,10 +689,12 @@ class EventMessage(StreamingMessage):
     }
 
     """A message that holds event codes."""
+
     def __init__(self, msgid, payload, fin):
         super().__init__(msgid, payload, fin)
         self.event_code = parse_num(payload[9:11], False)
-        self.event_string = EventMessage.event_map.get(self.event_code, f'unknown:{self.event_code}')
+        self.event_string = EventMessage.event_map.get(
+            self.event_code, f'unknown:{self.event_code}')
         # event-specific data (we just store the bytes; see vendor SDK manual
         # for the interpretation)
         self.event_data = payload[11:]
@@ -689,7 +761,8 @@ def decode_bytestream(stream):
         # read payload length
         payload_len = next(stream)
         if payload_len > 128:
-            logger.error(f"Invalid payload length > 128 encountered ({payload_len})")
+            logger.error(
+                f"Invalid payload length > 128 encountered ({payload_len})")
             # scan to the end of the message
             # (we do this so that we don't lose unnecessary data by skipping
             # a bogus amount of data)
