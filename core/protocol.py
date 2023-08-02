@@ -495,9 +495,9 @@ class SummaryDataMessageV3(SummaryDataMessage):
         self.link_quality = parse_num(payload[34:35], False, inval=0xFF)*100/254
         self.rssi = parse_num(payload[35:36], False, inval=0x80)
         self.tx_power = parse_num(payload[36:37], False, inval=0x80)
-        self.estimated_core_temperature = parse_num([payload[37], 256], False, inval=0xFFFF) * 0.1
-        self.__dict__.update(SummaryDataMessageV3.gps_pos_unpacker(payload[38:48]))
-        self.gps_speed = parse_num(payload[48:50], False) & 0x3FFF
+        self.estimated_core_temperature = parse_num(payload[37:39], False, inval=0xFFFF) * 0.1
+        self.__dict__.update(SummaryDataMessageV3.gps_pos_unpacker(payload[39:49]))
+        self.gps_speed = parse_num(payload[49:51], False) & 0x3FFF
         self.__dict__.update(SummaryDataMessageV3.accelerometry_unpacker(payload[51:71]))
         self.avg_rate_of_force_development *= 0.01
         self.avg_step_impulse *= 0.01
