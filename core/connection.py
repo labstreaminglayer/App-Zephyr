@@ -17,7 +17,7 @@ __all__ = ['BioharnessIO']
 
 class BioharnessIO:
 
-    def __init__(self, address='', port=1, lifesign_interval=2, reconnect=True,
+    def __init__(self, address='', port=5, lifesign_interval=2, reconnect=True,
                  daemon=False):
         """Handle message-level communication with a Bioharness device via BLE.
 

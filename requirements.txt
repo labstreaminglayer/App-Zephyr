@@ -1,0 +1,5 @@
+numpy
+git+https://github.com/pybluez/pybluez.git
+matplotlib
+pylsl
+cbitstruct
