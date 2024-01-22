@@ -21,4 +21,4 @@ if [ $? -eq 1 ]; then
    conda env create -n pyzephyr -f conda-environment.yml
 fi
 
-conda activate pyzephyr && python main.py $@
+conda activate pyzephyr && python examples/sender.py $@

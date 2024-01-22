@@ -22,4 +22,4 @@ if errorlevel 1 (
 )
 
 echo Launching application...
-call conda activate pyzephyr && python main.py %*
+call conda activate pyzephyr && python examples\\sender.py %*

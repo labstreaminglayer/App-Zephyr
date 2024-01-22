@@ -5,7 +5,7 @@ import queue
 import asyncio
 from concurrent import futures
 
-from .bluetooth import BioharnessIO
+from .connection import BioharnessIO
 from .protocol import Message, MI, periodic_messages, transmit_state2data_packet
 
 logger = logging.getLogger(__name__)

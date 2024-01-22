@@ -1,5 +1,15 @@
 """Command line interface for the Zephyr BioHarness LSL integration."""
 
+import threading
+import time
+from datetime import datetime
+
+import numpy as np
+from matplotlib import pyplot as plt
+from pylsl import StreamInlet
+from matplotlib.animation import FuncAnimation
+import matplotlib.ticker as ticker
+
 import logging
 import datetime
 import asyncio
@@ -13,6 +23,49 @@ from core.protocol import *
 logger = logging.getLogger(__name__)
 
 
+def animate(i, signals: {str: StreamInlet}, axs: dict,first_time_stamp:list[float]):
+    lines = []
+    for stream_name, stream in signals.items():
+        samples, timestamps = stream.pull_chunk()
+        if len(samples) > 0:
+            xs = []
+            for sample in samples:
+                if isinstance(sample, list):
+                    xs.append(sample[0])
+                else:
+                    xs.append(float(sample))
+            if first_time_stamp[0] == 0:
+                first_time_stamp[0] = timestamps[0]
+            timestamps = np.array(timestamps) - first_time_stamp[0]
+            lines.append(axs[stream_name].plot(timestamps, xs)[0])
+    return list(axs.values())
+
+
+def receive():
+    global modalities
+    signals = {}
+    for mod in modalities:
+        streams = pylsl.resolve_stream('type', mod)
+        if len(streams) > 0:
+            signals[mod] = pylsl.StreamInlet(streams[0])
+    fig, axs = plt.subplots(len(signals.keys()), 1, figsize=(10, 6))
+    plt.subplots_adjust(hspace=1 / len(signals.keys()))
+    axes = {}
+    sample_rate = 250
+    interval_size = 1000 // sample_rate
+    first_time_stamp = [0]
+    for i, stream_name in enumerate(signals.keys()):
+        axes[stream_name] = axs[i]
+        ax = axes[stream_name]
+        ax.set_title(f"{stream_name}")
+        ax.ticklabel_format(useOffset=False, style='plain', axis='x')
+        ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+
+    # Create a StreamInlet to read from the stream.
+    ani = FuncAnimation(fig, animate, fargs=(signals, axes,first_time_stamp), interval=interval_size)
+    plt.show()
+
+
 def add_manufacturer(desc):
     """Add manufacturer into to a stream's desc"""
     acq = desc.append_child('acquisition')
@@ -23,9 +76,9 @@ def add_manufacturer(desc):
 # noinspection PyUnusedLocal
 async def enable_ecg(link, nameprefix, idprefix, **kwargs):
     """Enable the ECG data stream. This is the raw ECG waveform."""
-    info = pylsl.StreamInfo(nameprefix+'ECG', 'ECG', 1,
+    info = pylsl.StreamInfo(nameprefix + 'ECG', 'ECG', 1,
                             nominal_srate=ECGWaveformMessage.srate,
-                            source_id=idprefix+'-ECG')
+                            source_id=idprefix + '-ECG')
     desc = info.desc()
     chn = desc.append_child('channels').append_child('channel')
     chn.append_child_value('label', 'ECG1')
@@ -44,9 +97,9 @@ async def enable_ecg(link, nameprefix, idprefix, **kwargs):
 async def enable_respiration(link, nameprefix, idprefix, **kwargs):
     """Enable the respiration data stream. This is the raw respiration (chest
     expansion) waveform."""
-    info = pylsl.StreamInfo(nameprefix+'Resp', 'Respiration', 1,
+    info = pylsl.StreamInfo(nameprefix + 'Resp', 'Respiration', 1,
                             nominal_srate=BreathingWaveformMessage.srate,
-                            source_id=idprefix+'-Resp')
+                            source_id=idprefix + '-Resp')
     desc = info.desc()
     chn = desc.append_child('channels').append_child('channel')
     chn.append_child_value('label', 'Respiration')
@@ -65,9 +118,9 @@ async def enable_respiration(link, nameprefix, idprefix, **kwargs):
 async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
     """Enable the accelerometer data stream. This is a 3-channel stream in units
     of 1 g (earth gravity)."""
-    info = pylsl.StreamInfo(nameprefix+'Accel100mg', 'Mocap', 3,
+    info = pylsl.StreamInfo(nameprefix + 'Accel100mg', 'Accel100mg', 3,
                             nominal_srate=Accelerometer100MgWaveformMessage.srate,
-                            source_id=idprefix+'-Accel100mg')
+                            source_id=idprefix + '-Accel100mg')
     desc = info.desc()
     chns = desc.append_child('channels')
     for lab in ['X', 'Y', 'Z']:
@@ -88,9 +141,9 @@ async def enable_accel100mg(link, nameprefix, idprefix, **kwargs):
 async def enable_accel(link, nameprefix, idprefix, **kwargs):
     """Enable the regular accelerometer data stream. This is a 3-channel stream
     with slightly higher res than accel100mg (I believe around 2x), but """
-    info = pylsl.StreamInfo(nameprefix+'Accel', 'Mocap', 3,
+    info = pylsl.StreamInfo(nameprefix + 'Accel', 'Accel', 3,
                             nominal_srate=AccelerometerWaveformMessage.srate,
-                            source_id=idprefix+'-Accel')
+                            source_id=idprefix + '-Accel')
     desc = info.desc()
     chns = desc.append_child('channels')
     for lab in ['X', 'Y', 'Z']:
@@ -112,9 +165,9 @@ async def enable_rtor(link, nameprefix, idprefix, **kwargs):
     """Enable the RR interval data stream. This has the interval between the
     most recent two ECG R-waves, in ms (held constant until the next R-peak),
     and the sign of the reading alternates with each new R peak."""
-    info = pylsl.StreamInfo(nameprefix+'RtoR', 'Misc', 1,
+    info = pylsl.StreamInfo(nameprefix + 'RtoR', 'RtoR', 1,
                             nominal_srate=RtoRMessage.srate,
-                            source_id=idprefix+'-RtoR')
+                            source_id=idprefix + '-RtoR')
     desc = info.desc()
     chn = desc.append_child('channels').append_child('channel')
     chn.append_child_value('label', 'RtoR')
@@ -133,10 +186,10 @@ async def enable_rtor(link, nameprefix, idprefix, **kwargs):
 async def enable_events(link, nameprefix, idprefix, **kwargs):
     """Enable the events data stream. This has a few system events like button
     pressed, battery low, worn status changed."""
-    info = pylsl.StreamInfo(nameprefix+'Markers', 'Markers', 1,
+    info = pylsl.StreamInfo(nameprefix + 'Events', 'Events', 1,
                             nominal_srate=0,
                             channel_format=pylsl.cf_string,
-                            source_id=idprefix+'-Markers')
+                            source_id=idprefix + '-Events')
     outlet = pylsl.StreamOutlet(info)
 
     def on_event(msg):
@@ -164,10 +217,10 @@ async def enable_summary(link, nameprefix, idprefix, **kwargs):
         nonlocal info, outlet
         content = msg.as_dict()
         if info is None:
-            info = pylsl.StreamInfo(nameprefix+'Summary', 'Misc', len(content),
+            info = pylsl.StreamInfo(nameprefix + 'Summary', 'Summary', len(content),
                                     nominal_srate=1,
                                     channel_format=pylsl.cf_float32,
-                                    source_id=idprefix+'-Summary')
+                                    source_id=idprefix + '-Summary')
             desc = info.desc()
             add_manufacturer(desc)
             chns = desc.append_child('channels')
@@ -195,10 +248,10 @@ async def enable_general(link, nameprefix, idprefix, **kwargs):
         nonlocal info, outlet
         content = msg.as_dict()
         if info is None:
-            info = pylsl.StreamInfo(nameprefix+'General', 'Misc', len(content),
+            info = pylsl.StreamInfo(nameprefix + 'General', 'General', len(content),
                                     nominal_srate=1,
                                     channel_format=pylsl.cf_float32,
-                                    source_id=idprefix+'-General')
+                                    source_id=idprefix + '-General')
             desc = info.desc()
             add_manufacturer(desc)
             chns = desc.append_child('channels')
@@ -216,22 +269,24 @@ async def enable_general(link, nameprefix, idprefix, **kwargs):
 
 # map of functions that enable various streams and hook in the respective handlers
 enablers = {
-    'ecg': enable_ecg,
-    'respiration': enable_respiration,
-    'accel100mg': enable_accel100mg,
-    'accel': enable_accel,
-    'rtor': enable_rtor,
-    'events': enable_events,
-    'summary': enable_summary,
-    'general': enable_general,
+    'ECG': enable_ecg,
+    'Respiration': enable_respiration,
+    'Accel100mg': enable_accel100mg,
+    'Accel': enable_accel,
+    'RtoR': enable_rtor,
+    'Events': enable_events,
+    'Summary': enable_summary,
+    'General': enable_general,
 }
 
+
 # our BioHarness link
-link = None
 
 
 async def init():
     global link
+    global wait
+    global modalities
     try:
         # parse args
         p = argparse.ArgumentParser(
@@ -287,7 +342,7 @@ async def init():
                           idprefix=id_prefix, **vars(args))
 
         logger.info('Now streaming...')
-
+        wait = False
     except SystemExit:
         asyncio.get_event_loop().stop()
     except TimeoutError as e:
@@ -297,15 +352,28 @@ async def init():
         logger.exception(e)
         asyncio.get_event_loop().stop()
 
-if __name__ == "__main__":
-    asyncio.ensure_future(init())
-    loop = asyncio.get_event_loop()
+
+def start_async_loop(l):
+    asyncio.set_event_loop(l)
     try:
-        loop.run_forever()
+        l.run_forever()
     except KeyboardInterrupt:
         logger.info("Ctrl-C pressed.")
     finally:
         if link:
             # noinspection PyUnresolvedReferences
             link.shutdown()
-        loop.close()
+        l.close()
+
+
+if __name__ == "__main__":
+    link = None
+    modalities = []
+    wait = True
+    loop = asyncio.new_event_loop()
+    asyncio.run_coroutine_threadsafe(init(), loop)
+    thread = threading.Thread(target=start_async_loop, args=(loop,))
+    thread.start()
+    while wait:
+        time.sleep(0.1)
+    receive()
