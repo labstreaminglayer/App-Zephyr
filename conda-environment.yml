@@ -15,10 +15,9 @@ channels:
 - conda-forge
 - defaults
 dependencies:
-- python=3.7
+- python
+- matplotlib
+- numpy
 - pip
 - pip:
-  - cbitstruct
-  - pybluez ; platform_system != "Windows"
-  - https://s3.amazonaws.com/resources.neuropype.io/wheels/PyBluez-0.22-cp37-cp37m-win_amd64.whl ; platform_system == "Windows"
-  - pylsl==1.13.1
+  - -r file:requirements.txt
